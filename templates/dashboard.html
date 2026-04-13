@@ -28,9 +28,10 @@
                 <div class="text-blue-400 bg-blue-500/10 p-3 rounded-xl flex items-center cursor-pointer font-bold">
                     <i class="fas fa-th-large mr-3 text-lg"></i> Fleet Overview
                 </div>
-                <a href="https://www.dwservice.net/en/agents.html" target="_blank" class="text-slate-400 p-3 rounded-xl flex items-center hover:bg-slate-800 transition">
-                    <i class="fas fa-external-link-alt mr-3"></i> DWService Login
-                </a>
+                <a href="https://www.dwservice.net/en/agents.html" target="_blank"
+   class="bg-orange-600 hover:bg-orange-500 text-white p-2 px-4 text-xs font-bold rounded-xl transition shadow-lg shadow-orange-500/20">
+    <i class="fas fa-desktop mr-2"></i> Take Control
+</a>
             </nav>
 
             <div class="absolute bottom-10 left-6 right-6 p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
@@ -101,30 +102,24 @@
                                 <p class="text-[9px] text-slate-600 mt-2">DISK: {{ d.disk_usage }}% | BAT: {{ d.battery_level }}%</p>
                             </td>
                             <td class="px-8 py-6 text-right">
-                                <div class="flex items-center justify-end space-x-2">
-                                    <!-- Command Form -->
-                                    <form action="/send-command" method="POST" class="flex items-center space-x-2">
-                                        <input type="hidden" name="device_id" value="{{ d.id }}">
-                                        <input type="text" name="command" placeholder="Enter System Command..."
-                                               class="bg-slate-950 border-slate-700 border rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none w-48 transition-all placeholder:text-slate-700">
-                                        <button class="bg-blue-600 hover:bg-blue-500 text-white p-2 px-5 rounded-xl text-xs font-bold transition active:scale-95 shadow-lg shadow-blue-500/20">
-                                            Execute
-                                        </button>
-                                    </form>
+    <div class="flex items-center justify-end space-x-3">
 
-                                    <!-- Remote Support Split Button -->
-                                    <div class="flex rounded-xl overflow-hidden border border-orange-500/30">
-                                        <button onclick="deployRemote('{{ d.id }}')" title="Install Remote Agent"
-                                                class="bg-slate-900 hover:bg-orange-600/10 text-orange-500 p-2 px-3 text-xs transition border-r border-orange-500/30">
-                                            <i class="fas fa-tools"></i>
-                                        </button>
-                                        <a href="https://www.dwservice.net/en/agents.html" target="_blank" title="Open Remote Session"
-                                           class="bg-orange-600 hover:bg-orange-500 text-white p-2 px-4 text-xs font-bold transition">
-                                            Remote
-                                        </a>
-                                    </div>
-                                </div>
-                            </td>
+        <!-- NEW FIX: Direct External Link -->
+        <a href="https://www.dwservice.net/en/agents.html"
+           target="_blank"
+           class="bg-orange-600 hover:bg-orange-500 text-white p-2 px-6 rounded-xl text-xs font-bold shadow-lg transition active:scale-95 flex items-center">
+            <i class="fas fa-desktop mr-2"></i> Take Control
+        </a>
+
+        <!-- Keep your command form below it -->
+        <form action="/send-command" method="POST" class="flex items-center space-x-2">
+            <input type="hidden" name="device_id" value="{{ d.id }}">
+            <input type="text" name="command" placeholder="Command..."
+                   class="bg-slate-950 border-slate-700 border rounded-xl px-4 py-2 text-xs w-32">
+            <button class="bg-blue-600 p-2 px-4 rounded-xl text-xs font-bold">Run</button>
+        </form>
+    </div>
+</td>
                         </tr>
                         {% endfor %}
                     </tbody>

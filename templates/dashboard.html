@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Python UEM | Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { background-color: #0f172a; color: #f8fafc; }
+    </style>
+</head>
+<body x-data="{ activeTab: 'overview', selectedDevice: null }">
+
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-slate-800">
+        <div class="p-6">
+            <h1 class="text-2xl font-bold text-blue-500">PY-UEM <span class="text-xs text-slate-500">v1.0</span></h1>
+        </div>
+        <nav class="mt-6">
+            <a @click="activeTab = 'overview'" :class="activeTab === 'overview' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
+                <i class="fas fa-chart-line mr-3"></i> Overview
+            </a>
+            <a @click="activeTab = 'devices'" :class="activeTab === 'devices' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
+                <i class="fas fa-laptop-code mr-3"></i> Endpoint Inventory
+            </a>
+            <a @click="activeTab = 'commands'" :class="activeTab === 'commands' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
+                <i class="fas fa-terminal mr-3"></i> Mass Deployment
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-8">
+
+        <!-- Header Stats -->
+        <div class="grid grid-cols-4 gap-6 mb-8">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <p class="text-slate-400 text-sm">Total Endpoints</p>
+                <h3 class="text-3xl font-bold">{{ stats.total }}</h3>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <p class="text-slate-400 text-sm">Active Now</p>
+                <h3 class="text-3xl font-bold text-green-400">{{ stats.online }}</h3>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <p class="text-slate-400 text-sm">Windows Systems</p>
+                <h3 class="text-3xl font-bold text-blue-400">{{ stats.windows }}</h3>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <p class="text-slate-400 text-sm">macOS Systems</p>
+                <h3 class="text-3xl font-bold text-orange-400">{{ stats.mac }}</h3>
+            </div>
+        </div>
+
+        <!-- Section: Overview -->
+        <div x-show="activeTab === 'overview'" x-cloak>
+            <h2 class="text-xl font-bold mb-4">System Alerts</h2>
+            <div class="bg-yellow-900/20 border border-yellow-700 text-yellow-500 p-4 rounded-lg mb-6">
+                <i class="fas fa-exclamation-triangle mr-2"></i> 3 Devices have not checked in for over 24 hours.
+            </div>
+            <!-- Add Charts Here later -->
+        </div>
+
+        <!-- Section: Devices -->
+        <div x-show="activeTab === 'devices'" x-cloak>
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-900 text-slate-400 uppercase text-xs font-bold">
+                        <tr>
+                            <th class="px-6 py-4">Status</th>
+                            <th class="px-6 py-4">Endpoint</th>
+                            <th class="px-6 py-4">Platform</th>
+                            <th class="px-6 py-4">Usage</th>
+                            <th class="px-6 py-4">Management</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700">
+                        {% for device in devices %}
+                        <tr class="hover:bg-slate-700/50 transition">
+                            <td class="px-6 py-4">
+                                <span class="flex items-center">
+                                    <span class="w-2 h-2 rounded-full mr-2 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+                                    Online
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="font-bold">{{ device.hostname }}</div>
+                                <div class="text-xs text-slate-500">{{ device.id }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-sm">
+                                <i class="fab fa-{{ 'windows text-blue-400' if device.platform == 'Windows' else 'apple text-slate-300' }} mr-2"></i>
+                                {{ device.platform }}
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="w-24 bg-slate-900 rounded-full h-1.5 mb-1">
+                                    <div class="bg-blue-500 h-1.5 rounded-full" style="width: 45%"></div>
+                                </div>
+                                <div class="text-[10px] text-slate-500">CPU: 45% | RAM: 62%</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <button @click="selectedDevice = {{ device|tojson }}; activeTab = 'inspect'" class="bg-slate-900 hover:bg-blue-600 border border-slate-600 px-4 py-1.5 rounded-lg text-xs transition">
+                                    Inspect & Control
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section: Inspect (Single Device View) -->
+        <div x-show="activeTab === 'inspect'" x-cloak x-transition>
+            <button @click="activeTab = 'devices'" class="text-blue-500 mb-4 inline-block hover:underline">← Back to Fleet</button>
+            <div class="grid grid-cols-3 gap-6">
+                <!-- Device Specs Card -->
+                <div class="col-span-1 bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <h2 class="text-2xl font-bold mb-1" x-text="selectedDevice.hostname"></h2>
+                    <p class="text-slate-500 text-sm mb-6" x-text="selectedDevice.id"></p>
+
+                    <div class="space-y-4">
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Operating System</span>
+                            <span x-text="selectedDevice.platform"></span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="text-slate-400">Last Seen</span>
+                            <span class="text-xs text-green-400" x-text="selectedDevice.last_seen"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remote Console -->
+                <div class="col-span-2 bg-black p-6 rounded-xl border border-slate-700 font-mono">
+                    <h3 class="text-green-500 mb-4 italic">// Remote Command Execution</h3>
+                    <form action="/send-command" method="POST">
+                        <input type="hidden" name="device_id" :value="selectedDevice.id">
+                        <textarea name="command" class="w-full bg-transparent text-white border-none focus:ring-0 h-32" placeholder="Enter PowerShell or Bash command..."></textarea>
+                        <div class="flex justify-end mt-4">
+                            <button class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-bold text-sm">EXECUTE ON ENDPOINT</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

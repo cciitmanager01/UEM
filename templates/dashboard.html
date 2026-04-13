@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PY-UEM | Command & Control</title>
+    <title>PY-UEM | Command & Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -12,101 +12,117 @@
             100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
         .online-pulse { animation: pulse-green 2s infinite; }
-        #remote-screen-img { image-rendering: pixelated; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-[#0f172a] text-slate-200 font-sans overflow-x-hidden">
+<body class="bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30">
     <div class="flex">
         <!-- Sidebar -->
         <div class="w-64 h-screen bg-slate-900 p-6 fixed border-r border-slate-800 z-10">
             <h1 class="text-2xl font-black text-blue-500 mb-10 flex items-center">
-                <i class="fas fa-shield-halved mr-3"></i> PY-UEM
+                <i class="fas fa-microchip mr-3"></i> PY-UEM
             </h1>
             <nav class="space-y-2">
-                <div class="text-blue-400 bg-blue-500/10 p-3 rounded-xl flex items-center cursor-pointer">
-                    <i class="fas fa-th-large mr-3"></i> Dashboard
+                <div class="text-blue-400 bg-blue-500/10 p-3 rounded-xl flex items-center cursor-pointer font-bold">
+                    <i class="fas fa-th-large mr-3 text-lg"></i> Fleet Overview
                 </div>
-                <div class="text-slate-500 p-3 rounded-xl flex items-center hover:bg-slate-800 cursor-not-allowed transition">
-                    <i class="fas fa-history mr-3"></i> Command Logs
-                </div>
+                <a href="https://www.dwservice.net/en/agents.html" target="_blank" class="text-slate-400 p-3 rounded-xl flex items-center hover:bg-slate-800 transition">
+                    <i class="fas fa-external-link-alt mr-3"></i> DWService Login
+                </a>
             </nav>
+
+            <div class="absolute bottom-10 left-6 right-6 p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+                <p class="text-[10px] uppercase text-slate-500 font-bold mb-1">Server Status</p>
+                <div class="flex items-center text-xs text-green-400">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 online-pulse"></span> Vercel Online
+                </div>
+            </div>
         </div>
 
         <!-- Main Content -->
         <div class="ml-64 p-8 w-full">
             <!-- Header Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Total Devices</p>
+                <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Endpoints</p>
                     <h2 class="text-4xl font-black mt-2">{{ stats.total }}</h2>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Live Now</p>
+                <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-500 text-[10px] uppercase tracking-widest font-bold text-green-500">Active</p>
                     <h2 class="text-4xl font-black mt-2 text-green-400">{{ stats.online }}</h2>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl border-t-4 border-t-blue-500">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold text-blue-400">Windows</p>
+                <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-500 text-[10px] uppercase tracking-widest font-bold text-blue-500">Windows</p>
                     <h2 class="text-4xl font-black mt-2">{{ stats.win }}</h2>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl border-t-4 border-t-orange-500">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold text-orange-400">macOS</p>
+                <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-500 text-[10px] uppercase tracking-widest font-bold text-orange-500">macOS</p>
                     <h2 class="text-4xl font-black mt-2">{{ stats.mac }}</h2>
                 </div>
             </div>
 
             <!-- Device Table -->
-            <div class="bg-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden">
+            <div class="bg-slate-800/50 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden backdrop-blur-md">
                 <table class="w-full text-left">
                     <thead class="bg-slate-900/80 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
                         <tr>
-                            <th class="px-8 py-5">Status</th>
-                            <th class="px-8 py-5">Endpoint Identity</th>
-                            <th class="px-8 py-5">Resource Usage</th>
+                            <th class="px-8 py-5">Connectivity</th>
+                            <th class="px-8 py-5">Device Identity</th>
+                            <th class="px-8 py-5">Telemetry</th>
                             <th class="px-8 py-5 text-right">C2 Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-700/50">
                         {% for d in devices %}
-                        <tr class="hover:bg-slate-700/20 transition group">
+                        <tr class="hover:bg-slate-700/30 transition group">
                             <td class="px-8 py-6">
-                                <span class="flex items-center text-xs font-bold uppercase tracking-tighter">
+                                <span class="flex items-center text-[10px] font-black uppercase tracking-tighter">
                                     <span class="w-3 h-3 rounded-full mr-3 {{ 'bg-green-500 online-pulse' if d.is_online else 'bg-slate-600' }}"></span>
-                                    {{ 'Connected' if d.is_online else 'Disconnected' }}
+                                    {{ 'Secured' if d.is_online else 'Lost' }}
                                 </span>
                             </td>
                             <td class="px-8 py-6">
-                                <div class="font-bold text-slate-100 flex items-center">
-                                    <i class="fab fa-{{ 'windows text-blue-400' if d.platform == 'Windows' else 'apple text-slate-400' }} mr-2 text-lg"></i>
+                                <div class="font-bold text-slate-100 flex items-center text-lg">
+                                    <i class="fab fa-{{ 'windows text-blue-400' if d.platform == 'Windows' else 'apple text-slate-400' }} mr-3"></i>
                                     {{ d.hostname }}
                                 </div>
-                                <div class="text-[10px] text-slate-500 font-mono mt-1">{{ d.id }}</div>
+                                <div class="text-[10px] text-slate-500 font-mono mt-1 opacity-60">{{ d.id }}</div>
                             </td>
                             <td class="px-8 py-6">
-                                <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500 mb-2">
+                                <div class="flex justify-between text-[9px] uppercase font-bold text-slate-400 mb-2">
                                     <span>CPU {{ d.cpu_usage }}%</span>
                                     <span>RAM {{ d.ram_usage }}%</span>
                                 </div>
                                 <div class="w-48 bg-slate-950 h-1.5 rounded-full overflow-hidden flex">
-                                    <div class="bg-blue-500 h-full transition-all duration-500" style="width: {{ d.cpu_usage }}%"></div>
+                                    <div class="bg-blue-500 h-full transition-all duration-700" style="width: {{ d.cpu_usage }}%"></div>
                                 </div>
+                                <p class="text-[9px] text-slate-600 mt-2">DISK: {{ d.disk_usage }}% | BAT: {{ d.battery_level }}%</p>
                             </td>
                             <td class="px-8 py-6 text-right">
-                                <div class="flex items-center justify-end space-x-3">
-                                    <!-- Remote View Button -->
-                                    <button onclick="openRemoteView('{{ d.id }}', '{{ d.hostname }}')"
-                                            class="p-2 px-4 bg-slate-900 hover:bg-red-600/20 text-red-500 border border-red-500/30 rounded-xl text-xs font-bold transition flex items-center">
-                                        <i class="fas fa-desktop mr-2"></i> Remote
-                                    </button>
-
+                                <div class="flex items-center justify-end space-x-2">
                                     <!-- Command Form -->
                                     <form action="/send-command" method="POST" class="flex items-center space-x-2">
                                         <input type="hidden" name="device_id" value="{{ d.id }}">
-                                        <input type="text" name="command" placeholder="PS / Bash Command..."
-                                               class="bg-slate-950 border-slate-700 border rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none w-48 transition-all">
-                                        <button class="bg-blue-600 hover:bg-blue-500 text-white p-2 px-4 rounded-xl text-xs font-bold shadow-lg transition active:scale-95">
-                                            Run
+                                        <input type="text" name="command" placeholder="Enter System Command..."
+                                               class="bg-slate-950 border-slate-700 border rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none w-48 transition-all placeholder:text-slate-700">
+                                        <button class="bg-blue-600 hover:bg-blue-500 text-white p-2 px-5 rounded-xl text-xs font-bold transition active:scale-95 shadow-lg shadow-blue-500/20">
+                                            Execute
                                         </button>
                                     </form>
+
+                                    <!-- Remote Support Split Button -->
+                                    <div class="flex rounded-xl overflow-hidden border border-orange-500/30">
+                                        <button onclick="deployRemote('{{ d.id }}')" title="Install Remote Agent"
+                                                class="bg-slate-900 hover:bg-orange-600/10 text-orange-500 p-2 px-3 text-xs transition border-r border-orange-500/30">
+                                            <i class="fas fa-tools"></i>
+                                        </button>
+                                        <a href="https://www.dwservice.net/en/agents.html" target="_blank" title="Open Remote Session"
+                                           class="bg-orange-600 hover:bg-orange-500 text-white p-2 px-4 text-xs font-bold transition">
+                                            Remote
+                                        </a>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -114,91 +130,36 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
 
-    <!-- REMOTE DESKTOP MODAL -->
-    <div id="remoteModal" class="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md z-[100] hidden flex-col items-center justify-center p-4">
-        <div class="w-full max-w-5xl flex justify-between items-center mb-4">
-            <div>
-                <h3 class="text-xl font-black text-white" id="remoteTargetName">Unknown Device</h3>
-                <p class="text-slate-500 text-xs uppercase tracking-widest" id="remoteTargetId">---</p>
-            </div>
-            <div class="flex items-center gap-4">
-                <span class="flex items-center text-[10px] text-red-500 font-bold uppercase animate-pulse">
-                    <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> LIVE STREAMING
-                </span>
-                <button onclick="closeRemoteView()" class="bg-slate-800 hover:bg-slate-700 text-white p-3 px-6 rounded-2xl font-bold transition">
-                    <i class="fas fa-times mr-2"></i> Stop Session
-                </button>
-            </div>
-        </div>
-
-        <!-- Screen Canvas -->
-        <div class="relative bg-black rounded-3xl border-4 border-slate-800 shadow-2xl overflow-hidden max-w-full">
-            <img id="remoteScreenImg" src="" alt="Waiting for agent..." class="max-h-[75vh] min-w-[320px] transition-opacity duration-300 opacity-0">
-            <div id="screenLoader" class="absolute inset-0 flex items-center justify-center">
-                <div class="text-center">
-                    <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
-                    <p class="text-slate-400 text-sm animate-pulse">Establishing secure uplink...</p>
+            <!-- Command Log Section -->
+            <div class="mt-10 bg-slate-900/40 p-6 rounded-3xl border border-slate-800">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Live C2 Audit Trail</h3>
+                <div class="space-y-2 font-mono text-[10px]">
+                    <div class="text-slate-500 italic">Listening for encrypted telemetry packets...</div>
+                    <!-- This part would ideally be populated by a 'logs' variable from your server -->
+                    {% for log in logs %}
+                    <div class="flex border-b border-slate-800/50 pb-2">
+                        <span class="text-blue-500 mr-4">[{{ log.created_at }}]</span>
+                        <span class="text-slate-300 mr-4">ID: {{ log.device_id }}</span>
+                        <span class="text-green-500">> {{ log.command }}</span>
+                        <span class="text-slate-500 ml-auto">STATUS: {{ log.status }}</span>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
-
-        <p class="mt-6 text-slate-500 text-[10px] uppercase">Slide-show mode: Updating every 2 seconds. No input control available in $0 tier.</p>
     </div>
 
     <script>
-        let streamInterval = null;
-        const modal = document.getElementById('remoteModal');
-        const screenImg = document.getElementById('remoteScreenImg');
-        const loader = document.getElementById('screenLoader');
+        function deployRemote(deviceId) {
+            if (!confirm("Deploy DWService Remote Agent to this endpoint?")) return;
 
-        function openRemoteView(deviceId, hostname) {
-            // 1. Show UI
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            document.getElementById('remoteTargetName').innerText = hostname;
-            document.getElementById('remoteTargetId').innerText = deviceId;
-
-            // 2. Send Start Command to Agent (using a fetch so we don't reload page)
             const formData = new FormData();
             formData.append('device_id', device_id);
-            formData.append('command', 'SCREEN_ON');
-            fetch('/send-command', { method: 'POST', body: formData });
+            formData.append('command', 'INSTALL_REMOTE'); // This triggers the function in your agent.py
 
-            // 3. Start Polling for images
-            streamInterval = setInterval(() => {
-                fetch(`/get-screen/${deviceId}`)
-                .then(response => response.text())
-                .then(data => {
-                    if (data && data.length > 100) {
-                        screenImg.src = data;
-                        screenImg.classList.remove('opacity-0');
-                        loader.classList.add('hidden');
-                    }
-                });
-            }, 2000);
-        }
-
-        function closeRemoteView() {
-            const deviceId = document.getElementById('remoteTargetId').innerText;
-
-            // 1. Clear Interval
-            clearInterval(streamInterval);
-
-            // 2. Hide Modal
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            screenImg.classList.add('opacity-0');
-            screenImg.src = "";
-            loader.classList.remove('hidden');
-
-            // 3. Send Stop Command to Agent
-            const formData = new FormData();
-            formData.append('device_id', device_id);
-            formData.append('command', 'SCREEN_OFF');
-            fetch('/send-command', { method: 'POST', body: formData });
+            fetch('/send-command', { method: 'POST', body: formData })
+                .then(() => alert("Installation packet sent. Remote session available in 60s."));
         }
     </script>
 </body>

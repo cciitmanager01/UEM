@@ -1,108 +1,113 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Python UEM | Command Center</title>
+    <title>PY-UEM | Command & Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        [x-cloak] { display: none !important; }
-        body { background-color: #0f172a; color: #f8fafc; }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .online-pulse { animation: pulse-green 2s infinite; }
+        #remote-screen-img { image-rendering: pixelated; }
     </style>
 </head>
-<body x-data="{ activeTab: 'overview', selectedDevice: null }">
-
-    <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-slate-800">
-        <div class="p-6">
-            <h1 class="text-2xl font-bold text-blue-500">PY-UEM <span class="text-xs text-slate-500">v1.0</span></h1>
-        </div>
-        <nav class="mt-6">
-            <a @click="activeTab = 'overview'" :class="activeTab === 'overview' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
-                <i class="fas fa-chart-line mr-3"></i> Overview
-            </a>
-            <a @click="activeTab = 'devices'" :class="activeTab === 'devices' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
-                <i class="fas fa-laptop-code mr-3"></i> Endpoint Inventory
-            </a>
-            <a @click="activeTab = 'commands'" :class="activeTab === 'commands' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'" class="flex items-center px-6 py-3 cursor-pointer transition">
-                <i class="fas fa-terminal mr-3"></i> Mass Deployment
-            </a>
-        </nav>
-    </div>
-
-    <!-- Main Content -->
-    <div class="ml-64 p-8">
-
-        <!-- Header Stats -->
-        <div class="grid grid-cols-4 gap-6 mb-8">
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <p class="text-slate-400 text-sm">Total Endpoints</p>
-                <h3 class="text-3xl font-bold">{{ stats.total }}</h3>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <p class="text-slate-400 text-sm">Active Now</p>
-                <h3 class="text-3xl font-bold text-green-400">{{ stats.online }}</h3>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <p class="text-slate-400 text-sm">Windows Systems</p>
-                <h3 class="text-3xl font-bold text-blue-400">{{ stats.windows }}</h3>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <p class="text-slate-400 text-sm">macOS Systems</p>
-                <h3 class="text-3xl font-bold text-orange-400">{{ stats.mac }}</h3>
-            </div>
+<body class="bg-[#0f172a] text-slate-200 font-sans overflow-x-hidden">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-64 h-screen bg-slate-900 p-6 fixed border-r border-slate-800 z-10">
+            <h1 class="text-2xl font-black text-blue-500 mb-10 flex items-center">
+                <i class="fas fa-shield-halved mr-3"></i> PY-UEM
+            </h1>
+            <nav class="space-y-2">
+                <div class="text-blue-400 bg-blue-500/10 p-3 rounded-xl flex items-center cursor-pointer">
+                    <i class="fas fa-th-large mr-3"></i> Dashboard
+                </div>
+                <div class="text-slate-500 p-3 rounded-xl flex items-center hover:bg-slate-800 cursor-not-allowed transition">
+                    <i class="fas fa-history mr-3"></i> Command Logs
+                </div>
+            </nav>
         </div>
 
-        <!-- Section: Overview -->
-        <div x-show="activeTab === 'overview'" x-cloak>
-            <h2 class="text-xl font-bold mb-4">System Alerts</h2>
-            <div class="bg-yellow-900/20 border border-yellow-700 text-yellow-500 p-4 rounded-lg mb-6">
-                <i class="fas fa-exclamation-triangle mr-2"></i> 3 Devices have not checked in for over 24 hours.
+        <!-- Main Content -->
+        <div class="ml-64 p-8 w-full">
+            <!-- Header Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Total Devices</p>
+                    <h2 class="text-4xl font-black mt-2">{{ stats.total }}</h2>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Live Now</p>
+                    <h2 class="text-4xl font-black mt-2 text-green-400">{{ stats.online }}</h2>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl border-t-4 border-t-blue-500">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold text-blue-400">Windows</p>
+                    <h2 class="text-4xl font-black mt-2">{{ stats.win }}</h2>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl border-t-4 border-t-orange-500">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider font-semibold text-orange-400">macOS</p>
+                    <h2 class="text-4xl font-black mt-2">{{ stats.mac }}</h2>
+                </div>
             </div>
-            <!-- Add Charts Here later -->
-        </div>
 
-        <!-- Section: Devices -->
-        <div x-show="activeTab === 'devices'" x-cloak>
-            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <!-- Device Table -->
+            <div class="bg-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden">
                 <table class="w-full text-left">
-                    <thead class="bg-slate-900 text-slate-400 uppercase text-xs font-bold">
+                    <thead class="bg-slate-900/80 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
                         <tr>
-                            <th class="px-6 py-4">Status</th>
-                            <th class="px-6 py-4">Endpoint</th>
-                            <th class="px-6 py-4">Platform</th>
-                            <th class="px-6 py-4">Usage</th>
-                            <th class="px-6 py-4">Management</th>
+                            <th class="px-8 py-5">Status</th>
+                            <th class="px-8 py-5">Endpoint Identity</th>
+                            <th class="px-8 py-5">Resource Usage</th>
+                            <th class="px-8 py-5 text-right">C2 Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-700">
-                        {% for device in devices %}
-                        <tr class="hover:bg-slate-700/50 transition">
-                            <td class="px-6 py-4">
-                                <span class="flex items-center">
-                                    <span class="w-2 h-2 rounded-full mr-2 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
-                                    Online
+                    <tbody class="divide-y divide-slate-700/50">
+                        {% for d in devices %}
+                        <tr class="hover:bg-slate-700/20 transition group">
+                            <td class="px-8 py-6">
+                                <span class="flex items-center text-xs font-bold uppercase tracking-tighter">
+                                    <span class="w-3 h-3 rounded-full mr-3 {{ 'bg-green-500 online-pulse' if d.is_online else 'bg-slate-600' }}"></span>
+                                    {{ 'Connected' if d.is_online else 'Disconnected' }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4">
-                                <div class="font-bold">{{ device.hostname }}</div>
-                                <div class="text-xs text-slate-500">{{ device.id }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-sm">
-                                <i class="fab fa-{{ 'windows text-blue-400' if device.platform == 'Windows' else 'apple text-slate-300' }} mr-2"></i>
-                                {{ device.platform }}
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="w-24 bg-slate-900 rounded-full h-1.5 mb-1">
-                                    <div class="bg-blue-500 h-1.5 rounded-full" style="width: 45%"></div>
+                            <td class="px-8 py-6">
+                                <div class="font-bold text-slate-100 flex items-center">
+                                    <i class="fab fa-{{ 'windows text-blue-400' if d.platform == 'Windows' else 'apple text-slate-400' }} mr-2 text-lg"></i>
+                                    {{ d.hostname }}
                                 </div>
-                                <div class="text-[10px] text-slate-500">CPU: 45% | RAM: 62%</div>
+                                <div class="text-[10px] text-slate-500 font-mono mt-1">{{ d.id }}</div>
                             </td>
-                            <td class="px-6 py-4">
-                                <button @click="selectedDevice = {{ device|tojson }}; activeTab = 'inspect'" class="bg-slate-900 hover:bg-blue-600 border border-slate-600 px-4 py-1.5 rounded-lg text-xs transition">
-                                    Inspect & Control
-                                </button>
+                            <td class="px-8 py-6">
+                                <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500 mb-2">
+                                    <span>CPU {{ d.cpu_usage }}%</span>
+                                    <span>RAM {{ d.ram_usage }}%</span>
+                                </div>
+                                <div class="w-48 bg-slate-950 h-1.5 rounded-full overflow-hidden flex">
+                                    <div class="bg-blue-500 h-full transition-all duration-500" style="width: {{ d.cpu_usage }}%"></div>
+                                </div>
+                            </td>
+                            <td class="px-8 py-6 text-right">
+                                <div class="flex items-center justify-end space-x-3">
+                                    <!-- Remote View Button -->
+                                    <button onclick="openRemoteView('{{ d.id }}', '{{ d.hostname }}')"
+                                            class="p-2 px-4 bg-slate-900 hover:bg-red-600/20 text-red-500 border border-red-500/30 rounded-xl text-xs font-bold transition flex items-center">
+                                        <i class="fas fa-desktop mr-2"></i> Remote
+                                    </button>
+
+                                    <!-- Command Form -->
+                                    <form action="/send-command" method="POST" class="flex items-center space-x-2">
+                                        <input type="hidden" name="device_id" value="{{ d.id }}">
+                                        <input type="text" name="command" placeholder="PS / Bash Command..."
+                                               class="bg-slate-950 border-slate-700 border rounded-xl px-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none w-48 transition-all">
+                                        <button class="bg-blue-600 hover:bg-blue-500 text-white p-2 px-4 rounded-xl text-xs font-bold shadow-lg transition active:scale-95">
+                                            Run
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -110,42 +115,91 @@
                 </table>
             </div>
         </div>
+    </div>
 
-        <!-- Section: Inspect (Single Device View) -->
-        <div x-show="activeTab === 'inspect'" x-cloak x-transition>
-            <button @click="activeTab = 'devices'" class="text-blue-500 mb-4 inline-block hover:underline">← Back to Fleet</button>
-            <div class="grid grid-cols-3 gap-6">
-                <!-- Device Specs Card -->
-                <div class="col-span-1 bg-slate-800 p-6 rounded-xl border border-slate-700">
-                    <h2 class="text-2xl font-bold mb-1" x-text="selectedDevice.hostname"></h2>
-                    <p class="text-slate-500 text-sm mb-6" x-text="selectedDevice.id"></p>
+    <!-- REMOTE DESKTOP MODAL -->
+    <div id="remoteModal" class="fixed inset-0 bg-[#0f172a]/95 backdrop-blur-md z-[100] hidden flex-col items-center justify-center p-4">
+        <div class="w-full max-w-5xl flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-xl font-black text-white" id="remoteTargetName">Unknown Device</h3>
+                <p class="text-slate-500 text-xs uppercase tracking-widest" id="remoteTargetId">---</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="flex items-center text-[10px] text-red-500 font-bold uppercase animate-pulse">
+                    <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> LIVE STREAMING
+                </span>
+                <button onclick="closeRemoteView()" class="bg-slate-800 hover:bg-slate-700 text-white p-3 px-6 rounded-2xl font-bold transition">
+                    <i class="fas fa-times mr-2"></i> Stop Session
+                </button>
+            </div>
+        </div>
 
-                    <div class="space-y-4">
-                        <div class="flex justify-between border-b border-slate-700 pb-2">
-                            <span class="text-slate-400">Operating System</span>
-                            <span x-text="selectedDevice.platform"></span>
-                        </div>
-                        <div class="flex justify-between border-b border-slate-700 pb-2">
-                            <span class="text-slate-400">Last Seen</span>
-                            <span class="text-xs text-green-400" x-text="selectedDevice.last_seen"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Remote Console -->
-                <div class="col-span-2 bg-black p-6 rounded-xl border border-slate-700 font-mono">
-                    <h3 class="text-green-500 mb-4 italic">// Remote Command Execution</h3>
-                    <form action="/send-command" method="POST">
-                        <input type="hidden" name="device_id" :value="selectedDevice.id">
-                        <textarea name="command" class="w-full bg-transparent text-white border-none focus:ring-0 h-32" placeholder="Enter PowerShell or Bash command..."></textarea>
-                        <div class="flex justify-end mt-4">
-                            <button class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-bold text-sm">EXECUTE ON ENDPOINT</button>
-                        </div>
-                    </form>
+        <!-- Screen Canvas -->
+        <div class="relative bg-black rounded-3xl border-4 border-slate-800 shadow-2xl overflow-hidden max-w-full">
+            <img id="remoteScreenImg" src="" alt="Waiting for agent..." class="max-h-[75vh] min-w-[320px] transition-opacity duration-300 opacity-0">
+            <div id="screenLoader" class="absolute inset-0 flex items-center justify-center">
+                <div class="text-center">
+                    <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
+                    <p class="text-slate-400 text-sm animate-pulse">Establishing secure uplink...</p>
                 </div>
             </div>
         </div>
 
+        <p class="mt-6 text-slate-500 text-[10px] uppercase">Slide-show mode: Updating every 2 seconds. No input control available in $0 tier.</p>
     </div>
+
+    <script>
+        let streamInterval = null;
+        const modal = document.getElementById('remoteModal');
+        const screenImg = document.getElementById('remoteScreenImg');
+        const loader = document.getElementById('screenLoader');
+
+        function openRemoteView(deviceId, hostname) {
+            // 1. Show UI
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('remoteTargetName').innerText = hostname;
+            document.getElementById('remoteTargetId').innerText = deviceId;
+
+            // 2. Send Start Command to Agent (using a fetch so we don't reload page)
+            const formData = new FormData();
+            formData.append('device_id', device_id);
+            formData.append('command', 'SCREEN_ON');
+            fetch('/send-command', { method: 'POST', body: formData });
+
+            // 3. Start Polling for images
+            streamInterval = setInterval(() => {
+                fetch(`/get-screen/${deviceId}`)
+                .then(response => response.text())
+                .then(data => {
+                    if (data && data.length > 100) {
+                        screenImg.src = data;
+                        screenImg.classList.remove('opacity-0');
+                        loader.classList.add('hidden');
+                    }
+                });
+            }, 2000);
+        }
+
+        function closeRemoteView() {
+            const deviceId = document.getElementById('remoteTargetId').innerText;
+
+            // 1. Clear Interval
+            clearInterval(streamInterval);
+
+            // 2. Hide Modal
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            screenImg.classList.add('opacity-0');
+            screenImg.src = "";
+            loader.classList.remove('hidden');
+
+            // 3. Send Stop Command to Agent
+            const formData = new FormData();
+            formData.append('device_id', device_id);
+            formData.append('command', 'SCREEN_OFF');
+            fetch('/send-command', { method: 'POST', body: formData });
+        }
+    </script>
 </body>
 </html>

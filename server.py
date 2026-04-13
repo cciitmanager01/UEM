@@ -8,7 +8,7 @@ app = Flask(__name__)
 # --- CONFIGURATION ---
 SUPABASE_URL = "https://wvpjnrzmpdswhjnkskbb.supabase.co"
 # IMPORTANT: Use the SERVICE_ROLE key (starts with 'ey'), NOT the publishable key.
-SUPABASE_KEY = "REPLACE_WITH_YOUR_SERVICE_ROLE_KEY"
+SUPABASE_KEY = "sb_publishable_OLTq7mUEIiRSSZ09ZOud4g_HznmliBj"
 API_SECRET_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)

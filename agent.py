@@ -5,99 +5,94 @@ import time
 import os
 import psutil
 
-# --- CONFIG ---
-# If running on the same computer as server.py, use "http://127.0.0.1:5000"
-# If running on a different computer, use "http://SERVER_IP_ADDRESS:5000"
-SERVER_URL = "http://127.0.0.1:5000"
+# ================= CONFIGURATION =================
+# 1. Your Vercel URL (NO trailing slash)
+SERVER_URL = "https://your-project-name.vercel.app"
 
-# MUST match your server.py key exactly
+# 2. This MUST match the API_SECRET_KEY in your server.py exactly
 API_SECRET_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
 
+# =================================================
+
 def get_serial():
+    """Gets the hardware serial number (Win/Mac)"""
     system = platform.system()
     try:
         if system == "Windows":
-            # Using a more robust PowerShell command for Windows Serial
             cmd = "powershell (Get-CimInstance -ClassName Win32_BIOS).SerialNumber"
             return subprocess.check_output(cmd, shell=True).decode().strip()
         elif system == "Darwin":  # macOS
             cmd = "ioreg -l | grep IOPlatformSerialNumber | awk -F'\"' '{print $4}'"
             return subprocess.check_output(cmd, shell=True).decode().strip()
-    except:
-        return "UNKNOWN_SERIAL"
+    except Exception as e:
+        return f"UNKNOWN-{platform.node()}"
 
 
 def get_telemetry():
-    """Collects the 'Hard UEM' stats for the dashboard"""
-    # CPU usage over 1 second
-    cpu = psutil.cpu_percent(interval=1)
-
-    # RAM usage percentage
-    ram = psutil.virtual_memory().percent
-
-    # DISK usage percentage
-    # Windows needs C:\\, Mac/Linux needs /
-    path = "C:\\" if platform.system() == "Windows" else "/"
+    """Collects hardware stats"""
     try:
+        cpu = psutil.cpu_percent(interval=1)
+        ram = psutil.virtual_memory().percent
+
+        # Disk detection
+        path = "C:\\" if platform.system() == "Windows" else "/"
         disk = psutil.disk_usage(path).percent
-    except:
-        disk = 0
 
-    # Battery percentage
-    battery = psutil.sensors_battery()
-    bat_percent = battery.percent if battery and battery.percent else 100
+        # Battery detection
+        battery = psutil.sensors_battery()
+        bat_percent = battery.percent if battery else 100
 
-    return {
-        "cpu": int(cpu),
-        "ram": int(ram),
-        "disk": int(disk),
-        "battery": int(bat_percent)
-    }
+        return {
+            "cpu": int(cpu),
+            "ram": int(ram),
+            "disk": int(disk),
+            "battery": int(bat_percent)
+        }
+    except Exception as e:
+        print(f"Telemetry Error: {e}")
+        return {"cpu": 0, "ram": 0, "disk": 0, "battery": 100}
 
 
-def run_command_and_report(serial, command):
-    """Runs a command and sends the text output back to the server"""
-    print(f"Executing: {command}")
+def execute_task(serial, command):
+    """Runs a command from the dashboard and reports the result"""
+    print(f"🚀 EXECUTING COMMAND: {command}")
     try:
-        # Capture the output (stdout) and errors (stderr)
+        # Run command with 30-second timeout
         process = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
         output = process.stdout + process.stderr
         status = "success" if process.returncode == 0 else "failed"
-
-        if not output:
-            output = "Command executed (No output)"
-
+        if not output: output = "Command finished with no text output."
     except Exception as e:
         output = str(e)
         status = "failed"
 
-    # Report back the result of the command
+    # Report back to Vercel
     try:
         headers = {"X-API-KEY": API_SECRET_KEY}
         requests.post(f"{SERVER_URL}/report-result", json={
             "id": serial,
             "output": output,
             "status": status
-        }, headers=headers)
+        }, headers=headers, timeout=10)
+        print("✅ Result reported to dashboard.")
     except:
-        print("Could not send command report to server.")
+        print("❌ Failed to send result report.")
 
 
 def main():
     serial = get_serial()
-    print(f"Hard UEM Agent Active. ID: {serial}")
+    print(f"--- Hard UEM Agent Active ---")
+    print(f"Device ID: {serial}")
+    print(f"Connecting to: {SERVER_URL}")
 
     while True:
-        # 1. Get Telemetry
         stats = get_telemetry()
 
-        # 2. Build Check-in Payload
         payload = {
             "id": serial,
             "hostname": platform.node(),
             "platform": "Windows" if platform.system() == "Windows" else "Mac",
-            "os_version": platform.platform(),
             "cpu_usage": stats['cpu'],
             "ram_usage": stats['ram'],
             "disk_usage": stats['disk'],
@@ -105,21 +100,32 @@ def main():
         }
 
         try:
-            # 3. Check-in to Server
+            print(f"\n[ {time.strftime('%H:%M:%S')} ] Checking in...")
             headers = {"X-API-KEY": API_SECRET_KEY}
-            r = requests.post(f"{SERVER_URL}/checkin", json=payload, headers=headers, timeout=10)
+
+            # Note: Timeout is 30s because Vercel "Cold Starts" take time
+            r = requests.post(f"{SERVER_URL}/checkin", json=payload, headers=headers, timeout=30)
+
+            print(f"Response Code: {r.status_code}")
 
             if r.status_code == 200:
-                cmd = r.json().get("command")
+                data = r.json()
+                cmd = data.get("command")
                 if cmd:
-                    run_command_and_report(serial, cmd)
+                    execute_task(serial, cmd)
+                else:
+                    print("Idle (No pending commands)")
+            elif r.status_code == 401:
+                print("❌ ERROR: API Secret Key mismatch! Check your keys.")
             else:
-                print(f"Check-in failed with status: {r.status_code}")
+                print(f"❌ SERVER ERROR: {r.text}")
 
+        except requests.exceptions.Timeout:
+            print("❌ TIMEOUT: Vercel is waking up, will retry...")
         except Exception as e:
-            print(f"Connection Error: {e}")
+            print(f"❌ CONNECTION ERROR: {e}")
 
-        # Wait 60 seconds (1 minute) before next check-in
+        # Wait 60 seconds
         time.sleep(60)
 
 

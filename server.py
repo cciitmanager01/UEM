@@ -1,115 +1,86 @@
 import datetime
-import os
 from flask import Flask, render_template, request, jsonify, redirect
-from supabase import create_client, Client
+from supabase import create_client
 
 app = Flask(__name__)
 
-# ================= CONFIGURATION =================
-# Based on your database string, this is your project URL:
+# --- CONFIGURATION ---
 SUPABASE_URL = "https://wvpjnrzmpdswhjnkskbb.supabase.co"
-
-# ACTION REQUIRED: Go to Supabase > Settings > API > service_role key
-# Paste that long key (starts with 'ey') below:
-SUPABASE_KEY = "sb_secret_x-EOXT6MXV2WaMVyIIjOQQ_5oFczrim"
-
-# This must match the key inside your agent.py
+SUPABASE_KEY = "sb_publishable_OLTq7mUEIiRSSZ09ZOud4g_HznmliBj"  # The 'ey' key from Supabase API settings
 API_SECRET_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
-# Initialize Supabase Client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-# =================================================
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# --- DASHBOARD LOGIC ---
 
 @app.route('/')
 def index():
-    """Main Dashboard View"""
     try:
-        # Fetch all devices
-        response = supabase.table("devices").select("*").execute()
-        devices = response.data if response.data else []
-
-        # Fetch recent command logs
-        logs_resp = supabase.table("command_logs").select("*").order("created_at", desc=True).limit(10).execute()
-        logs = logs_resp.data if logs_resp.data else []
-
-        # Calculate Dashboard Stats
-        stats = {"total": len(devices), "online": 0, "windows": 0, "mac": 0}
+        devices = supabase.table("devices").select("*").execute().data or []
+        stats = {"total": len(devices), "online": 0, "win": 0, "mac": 0}
         now = datetime.datetime.now(datetime.timezone.utc)
 
         for d in devices:
-            # Platform Count
-            if d.get('platform') == 'Windows':
-                stats['windows'] += 1
+            if d['platform'] == 'Windows':
+                stats['win'] += 1
             else:
                 stats['mac'] += 1
 
-            # Online Check (seen in last 5 minutes)
-            if d.get('last_seen'):
-                # Handle timestamp format
-                ls_str = d['last_seen'].replace('Z', '+00:00')
-                last_seen = datetime.datetime.fromisoformat(ls_str)
-                if now - last_seen < datetime.timedelta(minutes=5):
-                    stats['online'] += 1
+            # Online if seen in last 10 minutes (Vercel cold starts need more padding)
+            ls = datetime.datetime.fromisoformat(d['last_seen'].replace('Z', '+00:00'))
+            if now - ls < datetime.timedelta(minutes=10):
+                stats['online'] += 1
+                d['is_online'] = True
+            else:
+                d['is_online'] = False
 
-        return render_template('dashboard.html', devices=devices, stats=stats, logs=logs)
+        return render_template('dashboard.html', devices=devices, stats=stats)
     except Exception as e:
-        # This will now show you more detail if the connection fails
-        return f"Database Error: {str(e)}", 500
+        return f"Dashboard Error: {e}"
 
 
 @app.route('/send-command', methods=['POST'])
 def send_command():
-    """Queue a command for an agent"""
     device_id = request.form.get('device_id')
-    cmd_text = request.form.get('command')
-
-    if not device_id or not cmd_text:
-        return "Missing data", 400
-
-    supabase.table("devices").update({"pending_command": cmd_text}).eq("id", device_id).execute()
-
-    supabase.table("command_logs").insert({
-        "device_id": device_id,
-        "command": cmd_text,
-        "status": "pending"
-    }).execute()
-
+    cmd = request.form.get('command')
+    supabase.table("devices").update({"pending_command": cmd}).eq("id", device_id).execute()
     return redirect('/')
 
 
+# --- AGENT API ---
+
 @app.route('/checkin', methods=['POST'])
 def checkin():
-    """Agent reports stats and fetches commands"""
     if request.headers.get("X-API-KEY") != API_SECRET_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.json
     serial = data.get("id")
 
+    # Upsert telemetry
     supabase.table("devices").upsert({
         "id": serial,
         "hostname": data.get("hostname"),
         "platform": data.get("platform"),
-        "os_version": data.get("os_version"),
-        "cpu_usage": data.get("cpu_usage", 0),
-        "ram_usage": data.get("ram_usage", 0),
-        "disk_usage": data.get("disk_usage", 0),
-        "battery_level": data.get("battery_level", 100),
+        "cpu_usage": data.get("cpu_usage"),
+        "ram_usage": data.get("ram_usage"),
+        "disk_usage": data.get("disk_usage"),
+        "battery_level": data.get("battery_level"),
         "last_seen": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }).execute()
 
-    response = supabase.table("devices").select("pending_command").eq("id", serial).single().execute()
-    pending_cmd = response.data.get("pending_command") if response.data else None
-
-    if pending_cmd:
+    # Get and clear command
+    resp = supabase.table("devices").select("pending_command").eq("id", serial).single().execute()
+    cmd = resp.data.get("pending_command") if resp.data else None
+    if cmd:
         supabase.table("devices").update({"pending_command": None}).eq("id", serial).execute()
 
-    return jsonify({"status": "ok", "command": pending_cmd})
+    return jsonify({"command": cmd})
 
 
 @app.route('/report-result', methods=['POST'])
 def report_result():
-    """Agent reports back the text output of a command"""
     if request.headers.get("X-API-KEY") != API_SECRET_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -117,12 +88,6 @@ def report_result():
     supabase.table("command_logs").insert({
         "device_id": data.get("id"),
         "output": data.get("output"),
-        "status": data.get("status"),
-        "command": "Remote Execution Result"
+        "status": data.get("status")
     }).execute()
-
-    return jsonify({"status": "received"})
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    return jsonify({"status": "ok"})

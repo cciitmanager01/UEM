@@ -1,4 +1,0 @@
-﻿flask
-supabase
-requests
-gunicorn

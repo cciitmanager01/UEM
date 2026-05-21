@@ -101,32 +101,38 @@ def index():
         devices_resp = supabase.table("devices").select("*").execute()
         devices = devices_resp.data or []
 
-        # Stats logic
         stats = {"total": len(devices), "online": 0, "win": 0, "mac": 0}
+        # Use a fixed 'now' in UTC
         now = datetime.datetime.now(datetime.timezone.utc)
 
         for d in devices:
+            # OS Stats
             plat = d.get('platform', '')
-            if 'Windows' in plat:
-                stats['win'] += 1
-            elif 'Darwin' in plat.lower() or 'mac' in plat.lower():
-                stats['mac'] += 1
+            if 'Windows' in plat: stats['win'] += 1
+            elif 'Darwin' in plat.lower() or 'mac' in plat.lower(): stats['mac'] += 1
 
+            # ONLINE STATUS LOGIC
+            d['is_online'] = False
             if d.get('last_seen'):
-                ls = datetime.datetime.fromisoformat(d['last_seen'].replace('Z', '+00:00'))
-                d['is_online'] = (now - ls < datetime.timedelta(seconds=60))
-                if d['is_online']: stats['online'] += 1
-            else:
-                d['is_online'] = False
+                try:
+                    # Clean up the timestamp string from Supabase
+                    ts_str = d['last_seen'].replace('Z', '+00:00')
+                    ls = datetime.datetime.fromisoformat(ts_str)
 
-        # Fetch available software packages for the Auto-Installer
+                    # Ensure ls is timezone aware
+                    if ls.tzinfo is None:
+                        ls = ls.replace(tzinfo=datetime.timezone.utc)
+
+                    # If last seen within last 90 seconds, mark online
+                    diff = (now - ls).total_seconds()
+                    if diff < 90:
+                        d['is_online'] = True
+                        stats['online'] += 1
+                except Exception as e:
+                    print(f"Timestamp error for {d.get('hostname')}: {e}")
+
         packages = supabase.table("packages").select("*").execute().data or []
-
-        return render_template('dashboard.html',
-                               devices=devices,
-                               stats=stats,
-                               packages=packages,
-                               page="dashboard")
+        return render_template('dashboard.html', devices=devices, stats=stats, packages=packages, page="dashboard")
     except Exception as e:
         print(traceback.format_exc())
         return f"Database Error: {e}"

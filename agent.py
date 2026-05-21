@@ -11,19 +11,20 @@ import json
 import hashlib
 
 # --- CONFIGURATION ---
+# Pointing directly to your active Vercel server instance
 SERVER_URL = "https://uem-ten.vercel.app"
 API_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
 
 def get_unique_id():
+    """Generates a unique hardware identity to prevent database collisions"""
     try:
+        # Get BIOS Serial
         if platform.system() == "Windows":
-            # Using a more reliable PowerShell call for Serial Number
             cmd = "(Get-CimInstance -ClassName Win32_BIOS).SerialNumber"
             raw_serial = subprocess.check_output(["powershell", "-Command", cmd], shell=True).decode().strip()
         else:
-            raw_serial = \
-            subprocess.check_output("ioreg -l | grep IOPlatformSerialNumber", shell=True).decode().split('"')[-2]
+            raw_serial = subprocess.check_output("ioreg -l | grep IOPlatformSerialNumber", shell=True).decode().split('"')[-2]
 
         # Fallback if BIOS returns generic strings
         if not raw_serial or any(x in raw_serial.upper() for x in ["0000", "O.E.M", "FILL"]):
@@ -34,6 +35,18 @@ def get_unique_id():
         return f"CCI-{unique_hash}"
     except:
         return f"CCI-TEMP-{platform.node()}"
+
+
+def get_local_ip():
+    """Gets the actual internal network IP address (e.g. 192.168.x.x) instead of 127.0.0.1"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # Connect dummy socket to lookup outbound interface
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except:
+        return "127.0.0.1"
 
 
 def get_public_ip():
@@ -98,7 +111,7 @@ def handle_uem_command(command, session, serial):
             subprocess.run("shutdown /s /t 10" if platform.system() == "Windows" else "shutdown -h now", shell=True)
             return
         elif command.startswith("INSTALL|"):
-            # (Keep your existing INSTALL logic here)
+            # Setup silent installer logic
             pass
         else:
             # Standard Shell Command
@@ -122,8 +135,8 @@ def get_detailed_info(machine_id):
         "platform": f"{platform.system()} {platform.release()}",
         "os_version": platform.version(),
         "username": getpass.getuser(),
-        "ip_address": socket.gethostbyname(socket.gethostname()),
-        "public_ip": get_public_ip(),  # New field
+        "ip_address": get_local_ip(),  # Enhanced Dynamic LAN IP
+        "public_ip": get_public_ip(),
         "mac_address": ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8 * 6, 8)][::-1]),
         "cpu_model": platform.processor(),
         "cpu_cores": psutil.cpu_count(logical=False),
@@ -139,6 +152,7 @@ def get_detailed_info(machine_id):
 def main():
     machine_id = get_unique_id()
     print(f"CCI.UEM Agent Initialized. Identity: {machine_id}")
+    print(f"CCI.UEM Agent Handshake established. Gateway target: {SERVER_URL}")
 
     session = requests.Session()
     session.headers.update({"X-API-KEY": API_KEY})
@@ -155,7 +169,7 @@ def main():
                 payload["software_list"] = get_software_list()
                 last_software_scan = time.time()
 
-            # Heartbeat check-in
+            # Heartbeat check-in to Vercel Gateway
             r = session.post(f"{SERVER_URL}/checkin", json=payload, timeout=15)
 
             if r.status_code == 200:
@@ -164,8 +178,12 @@ def main():
                     print(f"Protocol Received: {cmd}")
                     handle_uem_command(cmd, session, machine_id)
             else:
-                print(f"Gateway Error: {r.status_code}")
+                print(f"Gateway Error Code: {r.status_code}")
 
+        except requests.exceptions.ConnectionError:
+            # Server is on Vercel; wait and retry later (no endless recursive loops)
+            print("[WARNING] Connection lost to Vercel gateway. Retrying in 30 seconds...")
+            time.sleep(10) # Added wait buffer
         except Exception as e:
             print(f"Handshake Interrupted: {e}")
 

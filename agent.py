@@ -11,24 +11,63 @@ import json
 import hashlib
 
 # --- CONFIGURATION ---
-# Pointing directly to your active Vercel server instance
 SERVER_URL = "https://uem-ten.vercel.app"
 API_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
 
-def get_unique_id():
-    """Generates a unique hardware identity to prevent database collisions"""
+def get_cpu_id():
+    """Extracts unique physical CPU Signature identifier"""
     try:
-        # Get BIOS Serial
+        if platform.system() == "Windows":
+            cmd = "(Get-CimInstance -ClassName Win32_Processor).ProcessorId"
+            return subprocess.check_output(["powershell", "-Command", cmd], shell=True).decode().strip()
+        elif platform.system() == "Darwin":
+            return subprocess.check_output("sysctl -n machdep.cpu.signature", shell=True).decode().strip()
+        else:
+            return subprocess.check_output("grep -m1 'flags' /proc/cpuinfo", shell=True).decode().strip()
+    except:
+        return "N/A"
+
+
+def get_hw_sensors():
+    """ITAM / HWMonitor: Gathers system core thermal parameters"""
+    sensors = {"temperatures": {}}
+    try:
+        if platform.system() == "Windows":
+            try:
+                # Queries physical ACPI thermal sensor zones
+                cmd = "(Get-CimInstance -Namespace root/wmi -ClassName MsAcpi_ThermalZoneTemperature).CurrentTemperature"
+                output = subprocess.check_output(["powershell", "-Command", cmd], shell=True).decode().strip()
+                if output:
+                    raw_temps = [float(p) for p in output.split() if p.isdigit()]
+                    if raw_temps:
+                        # Converts tenths of Kelvin into Celsius
+                        celsius = round((raw_temps[0] / 10.0) - 273.15, 1)
+                        sensors["temperatures"]["System Core"] = f"{celsius} °C"
+            except:
+                pass
+        else:
+            # POSIX fallback
+            if hasattr(psutil, "sensors_temperatures"):
+                temps = psutil.sensors_temperatures()
+                for name, entries in temps.items():
+                    if entries:
+                        sensors["temperatures"][name] = f"{entries[0].current} °C"
+    except Exception as e:
+        print(f"Diagnostics Error: {e}")
+    return sensors
+
+
+def get_unique_id():
+    try:
         if platform.system() == "Windows":
             cmd = "(Get-CimInstance -ClassName Win32_BIOS).SerialNumber"
             raw_serial = subprocess.check_output(["powershell", "-Command", cmd], shell=True).decode().strip()
         else:
             raw_serial = subprocess.check_output("ioreg -l | grep IOPlatformSerialNumber", shell=True).decode().split('"')[-2]
 
-        # Fallback if BIOS returns generic strings
         if not raw_serial or any(x in raw_serial.upper() for x in ["0000", "O.E.M", "FILL"]):
-            raw_serial = str(uuid.getnode())  # Use MAC address instead
+            raw_serial = str(uuid.getnode())
 
         combined = f"{raw_serial}-{platform.node()}"
         unique_hash = hashlib.md5(combined.encode()).hexdigest()[:12].upper()
@@ -38,10 +77,9 @@ def get_unique_id():
 
 
 def get_local_ip():
-    """Gets the actual internal network IP address (e.g. 192.168.x.x) instead of 127.0.0.1"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))  # Connect dummy socket to lookup outbound interface
+        s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
         return local_ip
@@ -50,7 +88,6 @@ def get_local_ip():
 
 
 def get_public_ip():
-    """Handy for identifying physical location of the asset"""
     try:
         return requests.get('https://api.ipify.org', timeout=5).text
     except:
@@ -58,7 +95,6 @@ def get_public_ip():
 
 
 def get_rustdesk_id():
-    """Finds the RustDesk ID from local configuration files"""
     paths = [
         os.path.expandvars(r'C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\core.toml'),
         os.path.expandvars(r'%APPDATA%\RustDesk\config\core.toml'),
@@ -79,11 +115,9 @@ def get_rustdesk_id():
 
 
 def get_software_list():
-    """ITAM: Scans for installed software"""
     apps = []
     try:
         if platform.system() == "Windows":
-            # Scan both 64-bit and 32-bit registry keys
             cmd = 'powershell "Get-ItemProperty HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*, HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\* | Select-Object DisplayName, DisplayVersion, Publisher | ConvertTo-Json"'
             output = subprocess.check_output(cmd, shell=True).decode(errors='ignore')
             if output:
@@ -102,7 +136,6 @@ def get_software_list():
 
 
 def handle_uem_command(command, session, serial):
-    """Processes Remote Ops and Terminal Feedback"""
     try:
         if command == "REBOOT":
             subprocess.run("shutdown /r /t 10" if platform.system() == "Windows" else "reboot", shell=True)
@@ -111,10 +144,8 @@ def handle_uem_command(command, session, serial):
             subprocess.run("shutdown /s /t 10" if platform.system() == "Windows" else "shutdown -h now", shell=True)
             return
         elif command.startswith("INSTALL|"):
-            # Setup silent installer logic
             pass
         else:
-            # Standard Shell Command
             proc = subprocess.run(command, shell=True, capture_output=True, text=True)
             output = proc.stdout if proc.stdout else proc.stderr
             session.post(f"{SERVER_URL}/report-result", json={
@@ -125,7 +156,6 @@ def handle_uem_command(command, session, serial):
 
 
 def get_detailed_info(machine_id):
-    """Telemetry: Gathers complete PC specs"""
     total_ram = round(psutil.virtual_memory().total / (1024 ** 3), 2)
 
     return {
@@ -135,10 +165,12 @@ def get_detailed_info(machine_id):
         "platform": f"{platform.system()} {platform.release()}",
         "os_version": platform.version(),
         "username": getpass.getuser(),
-        "ip_address": get_local_ip(),  # Enhanced Dynamic LAN IP
+        "ip_address": get_local_ip(),
         "public_ip": get_public_ip(),
         "mac_address": ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8 * 6, 8)][::-1]),
         "cpu_model": platform.processor(),
+        "cpu_id": get_cpu_id(),               # Added CPU ID
+        "hw_sensors": get_hw_sensors(),       # Added thermal diagnostics
         "cpu_cores": psutil.cpu_count(logical=False),
         "ram_total": f"{total_ram} GB",
         "uptime": f"{int((time.time() - psutil.boot_time()) // 3600)}h",
@@ -163,13 +195,11 @@ def main():
         try:
             payload = get_detailed_info(machine_id)
 
-            # ITAM: Scan software list only once every hour
             if time.time() - last_software_scan > 3600:
                 print("Performing Asset Software Audit...")
                 payload["software_list"] = get_software_list()
                 last_software_scan = time.time()
 
-            # Heartbeat check-in to Vercel Gateway
             r = session.post(f"{SERVER_URL}/checkin", json=payload, timeout=15)
 
             if r.status_code == 200:
@@ -181,9 +211,8 @@ def main():
                 print(f"Gateway Error Code: {r.status_code}")
 
         except requests.exceptions.ConnectionError:
-            # Server is on Vercel; wait and retry later (no endless recursive loops)
             print("[WARNING] Connection lost to Vercel gateway. Retrying in 30 seconds...")
-            time.sleep(10) # Added wait buffer
+            time.sleep(10)
         except Exception as e:
             print(f"Handshake Interrupted: {e}")
 

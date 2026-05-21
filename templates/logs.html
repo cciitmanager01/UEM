@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="bg-white rounded-[3rem] border-2 border-slate-50 shadow-sm overflow-hidden">
+    <div class="p-10 border-b border-slate-50">
+        <h3 class="font-black text-slate-900 text-2xl uppercase italic">Protocol Audit Logs</h3>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">System-wide event history</p>
+    </div>
+    <table class="w-full text-left">
+        <thead class="bg-slate-50/50">
+            <tr class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                <th class="px-10 py-6">Timestamp</th>
+                <th class="px-6 py-6">Target</th>
+                <th class="px-6 py-6">Type</th>
+                <th class="px-10 py-6">Action Details</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+            {% for log in logs %}
+            <tr class="text-xs">
+                <td class="px-10 py-5 font-mono text-slate-400 text-[10px]">{{ log.created_at }}</td>
+                <td class="px-6 py-5"><span class="font-black px-3 py-1 bg-slate-100 rounded-lg">{{ log.target_device }}</span></td>
+                <td class="px-6 py-5 uppercase font-bold text-blue-600">{{ log.action_type }}</td>
+                <td class="px-10 py-5 font-mono text-slate-700 bg-slate-50/30">{{ log.details }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

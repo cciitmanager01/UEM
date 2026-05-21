@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block auth_content %}
+<div class="min-h-screen flex items-center justify-center p-6 bg-slate-50 relative overflow-hidden">
+    <!-- Technical Background Pattern -->
+    <div class="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#020617 1px, transparent 1px); background-size: 30px 30px;"></div>
+
+    <div class="relative z-10 w-full max-w-[440px]">
+        <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-[0_20px_50px_rgba(2,6,23,0.05)] overflow-hidden">
+
+            <!-- Security Header (Bento Style) -->
+            <div class="p-8 pb-0 text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-950 rounded-2xl text-sky-400 mb-6 shadow-xl shadow-slate-200 ring-1 ring-white/10">
+                    <i class="fas fa-shield-halved text-2xl"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">CCI.UEM PROTOCOL</h1>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">1st Layer Security Gate</p>
+            </div>
+
+            <!-- Handshake Progress -->
+            <div class="px-10 py-8">
+                <div class="flex items-center justify-between mb-10 relative">
+                    <!-- Progress Line -->
+                    <div class="absolute top-5 left-0 w-full h-[2px] bg-slate-100 -z-10"></div>
+
+                    <!-- Step 1 -->
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs border-4 border-white shadow-sm">
+                            <i class="fas fa-fingerprint"></i>
+                        </div>
+                        <span class="text-[9px] font-black text-slate-900 uppercase">Identity</span>
+                    </div>
+                    <!-- Step 2 (Active) -->
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-10 h-10 rounded-full bg-sky-500 text-white flex items-center justify-center text-xs border-4 border-white shadow-[0_0_15px_rgba(14,165,233,0.4)] animate-pulse">
+                            <i class="fas fa-key"></i>
+                        </div>
+                        <span class="text-[9px] font-black text-sky-600 uppercase">PIN_Gate</span>
+                    </div>
+                    <!-- Step 3 -->
+                    <div class="flex flex-col items-center gap-2 opacity-30">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs border-4 border-white">
+                            <i class="fas fa-terminal"></i>
+                        </div>
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Console</span>
+                    </div>
+                </div>
+
+                <form id="pin-form" method="POST" class="space-y-6">
+                    <div class="relative group">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-3">Please enter 4 PIN to access the system</label>
+
+                        <div class="relative">
+                            <input type="password" name="pin" id="pin-input" maxlength="4"
+                                placeholder="0000" autofocus autocomplete="off"
+                                class="w-full text-center text-5xl tracking-[0.8em] font-mono font-bold py-6 bg-slate-50 border-2 border-slate-100 rounded-3xl text-slate-900 placeholder:text-slate-200 focus:border-slate-950 focus:bg-white focus:ring-[12px] focus:ring-slate-900/5 outline-none transition-all duration-300">
+
+                            <!-- Success Checkmark (Hidden by default) -->
+                            <div id="pin-spinner" class="absolute right-6 top-1/2 -translate-y-1/2 hidden">
+                                <i class="fas fa-circle-notch animate-spin text-slate-400"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if error %}
+                        <div class="flex items-center justify-center gap-2 text-red-500 bg-red-50 py-3 rounded-2xl border border-red-100 animate-shake">
+                            <i class="fas fa-triangle-exclamation text-xs"></i>
+                            <p class="text-[10px] font-black uppercase tracking-tight">{{ error }}</p>
+                        </div>
+                    {% endif %}
+
+                    <button type="submit" id="auth-btn" class="group w-full py-5 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-black hover:shadow-2xl hover:shadow-slate-300 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3">
+                        Authorize Handshake
+                        <i class="fas fa-arrow-right-long group-hover:translate-x-1 transition-transform"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Diagnostic Footer (Bento Style) -->
+            <div class="bg-slate-50 p-6 border-t border-slate-100 grid grid-cols-2 gap-4">
+                <div class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-slate-950 text-sky-400 flex items-center justify-center text-[10px]">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                    <div>
+                        <p class="text-[8px] font-black text-slate-400 uppercase leading-none">Status</p>
+                        <p class="text-[9px] font-bold text-slate-900 mt-1 uppercase">Encrypted</p>
+                    </div>
+                </div>
+                <div class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-slate-950 text-emerald-400 flex items-center justify-center text-[10px]">
+                        <i class="fas fa-tower-broadcast"></i>
+                    </div>
+                    <div>
+                        <p class="text-[8px] font-black text-slate-400 uppercase leading-none">Network</p>
+                        <p class="text-[9px] font-bold text-slate-900 mt-1 uppercase">Node_Live</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="mt-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">Authorized Personnel Only • IP Logged</p>
+    </div>
+</div>
+
+<style>
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-6px); }
+        75% { transform: translateX(6px); }
+    }
+    .animate-shake { animation: shake 0.3s ease-in-out; }
+
+    input::placeholder { color: #e2e8f0; }
+</style>
+
+<script>
+    const input = document.getElementById('pin-input');
+    const form = document.getElementById('pin-form');
+    const spinner = document.getElementById('pin-spinner');
+    const btn = document.getElementById('auth-btn');
+
+    input.addEventListener('input', (e) => {
+        if (e.target.value.length === 4) {
+            // UI Feedback
+            input.readOnly = true;
+            input.classList.add('opacity-50');
+            spinner.classList.remove('hidden');
+            btn.innerText = "Verifying Credentials...";
+            btn.classList.add('bg-slate-700');
+
+            // Submit
+            setTimeout(() => form.submit(), 400);
+        }
+    });
+</script>
+{% endblock %}

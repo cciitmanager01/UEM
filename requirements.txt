@@ -1,4 +1,22 @@
+# --- Core Web Server ---
 flask
-supabase
-requests
 gunicorn
+requests
+python-dotenv
+
+# --- Database & Security ---
+supabase
+PyJWT
+
+# --- System Telemetry & Agent Operations ---
+psutil
+pyautogui
+pillow
+
+# --- Reporting & Data Exports (NEW) ---
+pandas
+openpyxl
+xhtml2pdf
+
+# --- Utilities ---
+setuptools

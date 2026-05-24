@@ -4,5 +4,5 @@ supabase
 requests
 python-dotenv
 PyJWT
-xhtml2pdf
 openpyxl
+fpdf2

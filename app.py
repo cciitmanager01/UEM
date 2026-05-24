@@ -1,4 +1,5 @@
 import requests # Add this at the top
+from openpyxl import Workbook
 
 import datetime
 import os
@@ -738,39 +739,65 @@ def log_pms_activity():
     return jsonify({"status": "PMS Logged Successfully"})
 
 
+@app.route('/reports/assets/excel')
+@login_required
+def export_assets():
+    """IT Asset Export using openpyxl (Vercel Friendly)"""
+    data = supabase.table("devices").select("*").execute().data or []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Asset Inventory"
+
+    # Define Headers
+    headers = ["ID", "Alias", "Hostname", "Department", "User", "CPU", "RAM", "OS"]
+    ws.append(headers)
+
+    # Add Data
+    for d in data:
+        ws.append([
+            d.get('id'),
+            d.get('display_name'),
+            d.get('hostname'),
+            d.get('department'),
+            d.get('username'),
+            d.get('cpu_model'),
+            d.get('ram_total'),
+            d.get('platform')
+        ])
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return send_file(out, download_name="Asset_Report.xlsx", as_attachment=True)
+
+
 # --- EXPORT TO EXCEL (F-ASM-05 Style) ---
-@app.route('/pms/export/excel')
+
 @login_required
 def export_pms_excel():
-    # Fetch data from Supabase
+    """PMS Export using openpyxl (Vercel Friendly)"""
     res = supabase.table("pms_schedules").select("*, devices(display_name, hostname, department)").execute()
-    data = res.data
 
-    # Flatten the data for Excel
-    flat_data = []
-    for row in data:
-        flat_data.append({
-            "Asset Name": row['devices']['display_name'] or row['devices']['hostname'],
-            "Department": row['devices']['department'],
-            "Planned Date": row['planned_date'],
-            "Actual Date": row['actual_date'],
-            "Status": row['status'],
-            "Year": row['year']
-        })
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "PMS Schedule"
 
-    df = pd.DataFrame(flat_data)
+    ws.append(["Asset", "Department", "Planned Date", "Actual Date", "Status"])
 
-    # Create Excel file in memory
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='PMS_Schedule_2025')
+    for row in res.data:
+        ws.append([
+            row['devices']['display_name'] or row['devices']['hostname'],
+            row['devices']['department'],
+            row['planned_date'],
+            row['actual_date'],
+            row['status']
+        ])
 
-    output.seek(0)
-
-    return send_file(output,
-                     download_name="PMS_Schedule_F-ASM-05.xlsx",
-                     as_attachment=True,
-                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return send_file(out, download_name="PMS_Schedule.xlsx", as_attachment=True)
 
 
 # --- EXPORT TO PDF (F-ASM-06 Style) ---

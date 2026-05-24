@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="mb-10">
+        <h1 class="text-2xl font-bold text-zinc-900 uppercase tracking-tight">Gateway Configuration</h1>
+        <p class="text-sm text-zinc-500 mt-1">Global infrastructure parameters and API handshake security.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+        <!-- Left: Config Categories -->
+        <div class="md:col-span-2 space-y-6">
+
+            <!-- ADDED: Organization Structure (Department Management) -->
+            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="px-6 py-4 bg-zinc-50 border-b border-zinc-200 flex justify-between items-center">
+                    <h3 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Organization Structure</h3>
+                    <span class="text-[9px] font-mono text-zinc-400">Database-linked Groups</span>
+                </div>
+                <div class="p-6">
+                    <div class="flex gap-2 mb-6">
+                        <input type="text" id="new-dept-name" placeholder="New Department Name (e.g. Finance)"
+                               class="flex-1 h-10 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold focus:border-zinc-900 outline-none transition-all">
+                        <button onclick="addDepartment()"
+                                class="h-10 px-6 bg-zinc-900 text-white rounded-xl text-[10px] font-bold uppercase hover:bg-black transition-all">
+                            Add Group
+                        </button>
+                    </div>
+
+                    <!-- Department List -->
+                    <div id="dept-admin-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Populated by JavaScript -->
+                        <div class="animate-pulse flex space-x-4 p-4 bg-zinc-50 rounded-xl">
+                            <div class="flex-1 space-y-2 py-1">
+                                <div class="h-2 bg-zinc-200 rounded w-3/4"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Group (Existing Global Parameters) -->
+            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="px-6 py-4 bg-zinc-50 border-b border-zinc-200">
+                    <h3 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Global Parameters</h3>
+                </div>
+                <div class="divide-y divide-zinc-100">
+                    {% for cfg in configs %}
+                    <div class="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-bold text-zinc-900 uppercase tracking-wide">{{ cfg.config_name.replace('_', ' ') }}</p>
+                            <p class="text-[10px] text-zinc-400 font-mono mt-1">{{ cfg.category }}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="input-{{ cfg.id }}" value="{{ cfg.config_value }}"
+                                   class="h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-lg text-xs font-mono text-zinc-600 focus:border-zinc-900 outline-none transition-all w-48 sm:w-64">
+                            <button onclick="saveConfig('{{ cfg.id }}')"
+                                    class="h-9 w-9 flex items-center justify-center bg-zinc-900 text-white rounded-lg hover:bg-black transition-all">
+                                <i class="fas fa-check text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- API Keys Card (Existing) -->
+            <div class="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Master API Credentials</h3>
+                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold uppercase">Active</span>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-4 bg-zinc-50 border border-zinc-100 rounded-xl flex items-center justify-between">
+                        <code class="text-[10px] text-zinc-500">X-API-KEY: 7f9c2e4b8a1d5f306e92...********</code>
+                        <button class="text-zinc-400 hover:text-zinc-900"><i class="fas fa-copy text-xs"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebars (Existing) -->
+        <div class="space-y-6">
+            <div class="bg-zinc-900 rounded-2xl p-6 text-white shadow-xl">
+                <h3 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-6">Gateway Stats</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-end border-b border-white/10 pb-3">
+                        <span class="text-[10px] text-zinc-500 uppercase font-bold">Total Nodes</span>
+                        <span class="text-2xl font-bold tracking-tighter">{{ device_count }}</span>
+                    </div>
+                    <div class="flex justify-between items-end border-b border-white/10 pb-3">
+                        <span class="text-[10px] text-zinc-500 uppercase font-bold">Database</span>
+                        <span class="text-xs font-bold text-emerald-400 uppercase tracking-widest">Connected</span>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <span class="text-[10px] text-zinc-500 uppercase font-bold">Latency</span>
+                        <span class="text-xs font-mono">24ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
+                <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Maintenance Mode</p>
+                <button class="w-full py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-[10px] font-bold uppercase hover:bg-red-600 hover:text-white transition-all">
+                    Shutdown Gateway
+                </button>
+                <p class="text-[9px] text-zinc-400 mt-3 text-center leading-relaxed italic">This will disconnect all active handshakes instantly.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// LOAD DEPARTMENTS FROM DATABASE
+function loadDepartmentAdmin() {
+    fetch('/api/departments')
+        .then(res => res.json())
+        .then(data => {
+            const list = document.getElementById('dept-admin-list');
+            if (data.length === 0) {
+                list.innerHTML = '<p class="text-[10px] text-zinc-400 italic">No departments configured.</p>';
+                return;
+            }
+            list.innerHTML = data.map(dept => `
+                <div class="flex justify-between items-center p-3 bg-zinc-50 border border-zinc-100 rounded-xl group hover:border-zinc-300 transition-all">
+                    <span class="text-[10px] font-bold text-zinc-700 uppercase tracking-wide">${dept.name}</span>
+                    <button class="text-zinc-300 hover:text-red-500 transition-colors">
+                        <i class="fas fa-trash-alt text-[10px]"></i>
+                    </button>
+                </div>
+            `).join('');
+        });
+}
+
+// ADD NEW DEPARTMENT TO DATABASE
+function addDepartment() {
+    const nameInput = document.getElementById('new-dept-name');
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+    })
+    .then(res => res.json())
+    .then(data => {
+        nameInput.value = '';
+        loadDepartmentAdmin();
+    });
+}
+
+// INITIAL LOAD
+document.addEventListener('DOMContentLoaded', loadDepartmentAdmin);
+
+// EXISTING SAVE CONFIG LOGIC
+function saveConfig(configId) {
+    const value = document.getElementById('input-' + configId).value;
+    const btn = event.currentTarget;
+    const originalHtml = btn.innerHTML;
+
+    btn.innerHTML = '<i class="fas fa-circle-notch animate-spin text-[10px]"></i>';
+
+    fetch('/gateway/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: configId, value: value })
+    })
+    .then(res => res.json())
+    .then(data => {
+        setTimeout(() => {
+            btn.classList.replace('bg-zinc-900', 'bg-emerald-500');
+            btn.innerHTML = '<i class="fas fa-check text-[10px]"></i>';
+            setTimeout(() => {
+                btn.classList.replace('bg-emerald-500', 'bg-zinc-900');
+                btn.innerHTML = originalHtml;
+            }, 1000);
+        }, 400);
+    });
+}
+</script>
+{% endblock %}

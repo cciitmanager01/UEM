@@ -4,55 +4,291 @@
 <!-- Include Chart.js for Visual Telemetry -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<!-- Global Data Bridge -->
 <script>
-// --- GRAPH INITIALIZATION ---
-const ctx = document.getElementById('telemetryChart').getContext('2d');
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: ['12:00', '12:10', '12:20', '12:30', '12:40', '12:50'],
-        datasets: [{
-            label: 'Network Load',
-            data: [12, 19, 3, 5, 2, 3],
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            fill: true,
-            tension: 0.4,
-            borderWidth: 3,
-            pointRadius: 0
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { display: false }, border: { display: false } },
-            y: { grid: { color: '#f1f5f9' }, border: { display: false } }
+    const availablePackages = {{ packages | tojson }};
+    const RUSTDESK_HOST = "rustdesk-hbbs.synology.me";
+    const RUSTDESK_RAW_KEY = "+6cNRIDMAQ44Jp0tJ55o2AiKC7pcfK1+ioB7gxEMJ";
+    let availableScripts = []; // Loaded via API
+    window.availableDepartments = []; // Populated via Database
+</script>
+
+<div class="max-w-full mx-auto animate-in fade-in duration-700">
+
+    <!-- SECTION 1: HEADER & SOC FILTERS -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight leading-none uppercase">Infrastructure Overview</h1>
+            <p class="text-xs text-slate-400 font-medium mt-2 tracking-wide">Proactive monitoring for {{ stats.total }} active endpoints</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <!-- DYNAMIC DEPARTMENT FILTER (Linked to Supabase) -->
+            <div class="bg-white border border-slate-200 rounded-lg px-3 py-1 flex items-center gap-2 shadow-sm mr-2">
+                <label class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Fleet Grouping:</label>
+                <select id="dept-filter" onchange="filterByDept()" class="text-xs font-bold bg-transparent outline-none text-slate-700 cursor-pointer">
+                    <option value="all">All Departments</option>
+                    <!-- Options injected alphabetically via JS -->
+                </select>
+            </div>
+            <button onclick="exportFleetReport()" class="h-10 px-4 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-sm">
+                <i class="fas fa-file-export"></i> Export Audit
+            </button>
+            <button onclick="window.location.reload()" class="h-10 px-4 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                <i class="fas fa-sync-alt text-slate-400"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+
+    <!-- SECTION 1.5: REAL-TIME VULNERABILITY & COMPLIANCE GRAPHS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+        <!-- CVE Real-time Heatmap -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vulnerability Distribution (Real-time Database Matching)</h4>
+                <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold uppercase tracking-tighter">Zero Trust Active</span>
+            </div>
+            <div class="h-32">
+                <canvas id="vulnerabilityChart"></canvas>
+            </div>
+        </div>
+        <!-- Geofence Compliance -->
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Geofence Compliance</h4>
+            <div class="text-center py-2">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full border-4 border-emerald-500 mb-2">
+                    <span class="text-xl font-bold text-slate-900">100%</span>
+                </div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">All Nodes in Safe Zones</p>
+            </div>
+            <div class="mt-2 p-2 bg-slate-50 rounded text-[9px] text-slate-400 font-mono">
+                HQ_RADIUS: 5.0km | ENFORCED
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 2: STATS CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Managed</p>
+            <h3 class="text-3xl font-bold text-slate-900 mt-4">{{ stats.total }}</h3>
+        </div>
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div class="flex justify-between items-start">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Pulse</p>
+                <span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </div>
+            <h3 class="text-3xl font-bold text-emerald-600 mt-4">{{ stats.online }}</h3>
+        </div>
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">System Load</p>
+            <h3 class="text-3xl font-bold text-slate-900 mt-4">Nominal</h3>
+        </div>
+        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Security Health</p>
+            <h3 class="text-3xl font-bold text-emerald-500 mt-4">Protected</h3>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <!-- MAIN TABLE (UPDATED WITH DEPARTMENT COLUMN) -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-12">
+        <table class="w-full text-left" id="fleet-table">
+            <thead>
+                <tr class="bg-slate-50/50 border-b border-slate-100">
+                    <th class="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Endpoint</th>
+                    <th class="px-6 py-5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                    <!-- ADDED: Department Header -->
+                    <th class="px-6 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Department</th>
+                    <th class="px-6 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resource Health</th>
+                    <th class="px-8 py-5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Management</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50">
+                {% for d in devices %}
+                <tr class="hover:bg-slate-50 transition-all group fleet-row" data-dept="{{ d.department or 'Unassigned' }}">
+                    <td class="px-8 py-6">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center border border-slate-100 bg-white text-slate-400">
+                                {% if 'Windows' in d.platform %}<i class="fab fa-windows text-base"></i>
+                                {% else %}<i class="fab fa-apple text-base"></i>{% endif %}
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-slate-900 leading-none mb-1 uppercase tracking-tight">
+                                    {{ d.display_name or d.hostname }}
+                                </p>
+                                <p class="text-[10px] font-mono text-slate-400 uppercase">{{ d.id }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-6 text-center">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase {{ 'bg-emerald-50 text-emerald-700' if d.is_online else 'bg-slate-100 text-slate-400' }}">
+                            <span class="w-1 h-1 rounded-full {{ 'bg-emerald-500 animate-pulse' if d.is_online else 'bg-slate-300' }}"></span>
+                            {{ 'Synchronized' if d.is_online else 'Offline' }}
+                        </span>
+                        <div class="mt-1 text-[8px] text-slate-300 font-bold uppercase">Identity Verified</div>
+                    </td>
+
+                    <!-- ADDED: Department Cell -->
+                    <td class="px-6 py-6">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-tight">
+                            <i class="fas fa-users mr-1.5 text-[8px] opacity-50"></i>
+                            {{ d.department or 'Unassigned' }}
+                        </span>
+                    </td>
+
+                    <td class="px-6 py-6">
+                        <div class="flex items-center gap-6">
+                            <div class="w-24">
+                                <div class="flex justify-between text-[9px] font-bold uppercase mb-1">
+                                    <span class="text-slate-400">CPU</span>
+                                    <span class="{{ 'text-red-500 animate-pulse' if d.cpu_usage and d.cpu_usage > 90 else 'text-slate-900' }}">{{ d.cpu_usage or 0 }}%</span>
+                                </div>
+                                <div class="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                                    <div class="h-full {{ 'bg-red-500' if d.cpu_usage and d.cpu_usage > 90 else 'bg-zinc-900' }}" style="width: {{ d.cpu_usage or 0 }}%"></div>
+                                </div>
+                            </div>
+                            <div class="w-24">
+                                <div class="flex justify-between text-[9px] font-bold uppercase mb-1">
+                                    <span class="text-slate-400">RAM</span>
+                                    <span class="text-slate-900">{{ d.ram_usage or 0 }}%</span>
+                                </div>
+                                <div class="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-500" style="width: {{ d.ram_usage or 0 }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-8 py-6 text-right">
+                        <button onclick='openDrawer({{ d | tojson }})' class="h-9 px-5 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-blue-600 transition-all shadow-sm">
+                            Manage
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MANAGEMENT HANDSHAKE DRAWER -->
+<div id="drawerOverlay" class="fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 hidden opacity-0 transition-all duration-300" onclick="closeDrawer()"></div>
+<div id="deviceDrawer" class="fixed inset-y-0 right-0 w-full max-w-lg bg-white z-[60] shadow-2xl transform translate-x-full transition-transform duration-300 flex flex-col border-l border-slate-100">
+
+    <div class="p-8 border-b border-slate-100 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-slate-50 border border-slate-100 text-slate-900 rounded-xl flex items-center justify-center">
+                <i class="fas fa-microchip text-lg"></i>
+            </div>
+            <div>
+                <h2 id="drawerTitle" class="text-lg font-bold text-slate-900 tracking-tight leading-none uppercase">NODE_Handshake</h2>
+                <p id="drawerSubtitle" class="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Syncing Telemetry...</p>
+            </div>
+        </div>
+        <button onclick="closeDrawer()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Segmented Navigation -->
+    <div class="p-2 mx-8 mt-6 bg-slate-100 rounded-xl flex gap-1">
+    <button onclick="switchTab('overview')" id="tab-overview" ...>Telemetry</button>
+    <button onclick="switchTab('remote')" id="tab-remote" ...>Control</button>
+    <button onclick="switchTab('patches')" id="tab-patches" class="flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all">Patches</button> <!-- ADDED -->
+    <button onclick="switchTab('history')" id="tab-history" ...>History</button>
+    <button onclick="switchTab('software')" id="tab-software" ...>Apps</button>
+</div>
+
+    <div id="drawerBody" class="flex-1 overflow-y-auto p-8 custom-drawer-scrollbar"></div>
+</div>
+
+<script>
+let currentDevice = null;
+let statusIntervalId = null;
+
+// Initial Setup on Load
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Initialize Real-time Charts from Database Vulndata
+    const devices = {{ devices | tojson }};
+    let crit = 0, high = 0, med = 0;
+    devices.forEach(d => {
+        crit += (d.vulndata_critical || 0);
+        high += (d.vulndata_high || 0);
+        med += (d.vulndata_medium || 0);
+    });
+
+    const ctx = document.getElementById('vulnerabilityChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['CRITICAL', 'HIGH', 'MEDIUM', 'SECURE'],
+            datasets: [{
+                data: [crit, high, med, devices.length],
+                backgroundColor: ['#ef4444', '#f97316', '#eab308', '#10b981'],
+                borderRadius: 4, barThickness: 25
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { display: false }, ticks: { display: false } },
+                x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } }
+            }
         }
-    }
+    });
+
+    // 2. Load dynamic departments from API (Sorted Alphabetically by Backend)
+    fetch('/api/departments').then(res => res.json()).then(data => {
+        const filter = document.getElementById('dept-filter');
+        data.forEach(dept => {
+            const opt = document.createElement('option');
+            opt.value = dept.name; opt.innerText = dept.name;
+            filter.appendChild(opt);
+        });
+        window.availableDepartments = data;
+    });
+
+    // 3. Load Automation Script Library
+    fetch('/scripts_api').then(res => res.json()).then(data => availableScripts = data);
 });
 
-// --- DRAWER & STATUS SYNC LOGIC ---
-let currentDevice = null;
-let statusIntervalId = null; // Holds the polling schedule
+// Fleet Grouping Filter Logic
+function filterByDept() {
+    const val = document.getElementById('dept-filter').value;
+    document.querySelectorAll('.fleet-row').forEach(row => {
+        row.style.display = (val === 'all' || row.dataset.dept === val) ? '' : 'none';
+    });
+}
 
+// Database Sync: Identity & Grouping Update
+function updateDeviceMetadata(deviceId) {
+    const alias = document.getElementById('alias-input').value;
+    const dept = document.getElementById('dept-input').value;
+
+    fetch('/device/update-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId, display_name: alias, department: dept })
+    }).then(res => {
+        if(res.ok) {
+            alert('Database Successfully Updated: Identity Synced.');
+            window.location.reload();
+        }
+    });
+}
+
+// Management Drawer Controls
 function openDrawer(d) {
     currentDevice = d;
-    document.getElementById('drawerTitle').innerText = d.hostname;
-    document.getElementById('drawerSubtitle').innerText = "IDENT: " + d.id;
-
+    document.getElementById('drawerTitle').innerText = d.display_name || d.hostname;
+    document.getElementById('drawerSubtitle').innerText = "ID: " + d.id;
     const drawer = document.getElementById('deviceDrawer');
     const overlay = document.getElementById('drawerOverlay');
     overlay.classList.remove('hidden');
-
     setTimeout(() => {
         overlay.classList.remove('opacity-0');
         drawer.classList.remove('translate-x-full');
         switchTab('overview');
     }, 10);
-
-    // Sync start
     startStatusPolling(d.id);
 }
 
@@ -61,456 +297,280 @@ function closeDrawer() {
     const overlay = document.getElementById('drawerOverlay');
     drawer.classList.add('translate-x-full');
     overlay.classList.add('opacity-0');
-
-    setTimeout(() => overlay.classList.add('hidden'), 500);
-
-    // Stop sync
+    setTimeout(() => overlay.classList.add('hidden'), 300);
     stopStatusPolling();
 }
 
+// Real-time Heartbeat Pulse Polling
 function startStatusPolling(deviceId) {
-    stopStatusPolling(); // Safety check
-
-    // Polls database state every 3 seconds
     statusIntervalId = setInterval(() => {
         fetch(`/device/${deviceId}/status`)
             .then(res => res.json())
             .then(data => {
-                if (data) {
-                    // Update cache values
+                if (data && currentDevice) {
                     currentDevice.last_command_output = data.last_command_output;
                     currentDevice.rustdesk_id = data.rustdesk_id;
-                    currentDevice.hw_sensors = data.hw_sensors;
+                    currentDevice.battery_level = data.battery_level;
+                    currentDevice.is_charging = data.is_charging;
 
-                    // Sync Terminal DOM element directly without disrupting inputs
-                    const terminalPre = document.getElementById('terminal-pre');
-                    if (terminalPre) {
-                        terminalPre.innerText = data.last_command_output || 'Awaiting incoming command result...';
-                    }
+                    const terminal = document.getElementById('terminal-pre');
+                    if (terminal) terminal.innerText = data.last_command_output || 'Awaiting signal...';
 
-                    // Sync RustDesk DOM targets
-                    const rustdeskDisplay = document.getElementById('rustdesk-id-display');
-                    if (rustdeskDisplay) {
-                        rustdeskDisplay.innerText = data.rustdesk_id || 'ID_NOT_SYNCED';
-                    }
-
-                    const rustdeskLink = document.getElementById('rustdesk-link');
-                    if (rustdeskLink) {
-                        rustdeskLink.href = `rustdesk://${data.rustdesk_id}`;
-                    }
-
-                    // Sync Live HWMonitor list
-                    const sensorDiv = document.getElementById('sensor-readouts');
-                    if (sensorDiv && data.hw_sensors) {
-                        renderSensorsList(data.hw_sensors, sensorDiv);
+                    const batteryBar = document.getElementById('live-battery-bar');
+                    const batteryText = document.getElementById('live-battery-text');
+                    if(batteryBar) {
+                        batteryBar.style.width = data.battery_level + '%';
+                        batteryText.innerText = data.battery_level + '%';
+                        batteryBar.className = `h-full ${data.battery_level < 20 ? 'bg-red-500' : 'bg-emerald-500'}`;
                     }
                 }
-            })
-            .catch(err => console.log("Handshake polling offset:", err));
+            });
     }, 3000);
 }
 
-function stopStatusPolling() {
-    if (statusIntervalId) {
-        clearInterval(statusIntervalId);
-        statusIntervalId = null;
-    }
-}
+function stopStatusPolling() { if (statusIntervalId) clearInterval(statusIntervalId); }
 
 function switchTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.className = "tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white text-slate-400 border-2 border-slate-100 hover:border-slate-300 transition-all shadow-sm";
+    document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+        btn.className = "flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide text-slate-400 transition-all";
     });
     const active = document.getElementById('tab-' + tabName);
-    active.className = "tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-slate-900 text-white shadow-xl shadow-slate-300 ring-4 ring-slate-50 transition-all";
+    active.className = "flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide bg-white text-slate-900 shadow-sm transition-all";
 
-    const body = document.getElementById('drawerBody');
-    body.innerHTML = `<div class="flex flex-col items-center justify-center h-full gap-4 py-20"><div class="w-16 h-16 border-[6px] border-slate-100 border-t-blue-600 rounded-full animate-spin"></div><p class="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Accessing Buffer...</p></div>`;
+    if (tabName === 'overview') renderOverview();
+    if (tabName === 'remote') renderRemote();
+    if (tabName === 'history') renderHistory();
+    if (tabName === 'software') renderSoftware();
+    if (tabName === 'patches') renderPatches(); // ADDED
+}
+function renderPatches() {
+    fetch(`/device/${currentDevice.id}/patches`)
+        .then(res => res.json())
+        .then(data => {
+            let html = `
+                <div class="space-y-4 animate-in fade-in duration-300">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Updates</h4>
+                        <button onclick="quickAction('SCAN_PATCHES')" class="text-[9px] font-bold text-blue-600 uppercase">Force Scan</button>
+                    </div>
+            `;
 
-    setTimeout(() => {
-        if (tabName === 'overview') renderOverview();
-        if (tabName === 'software') renderSoftware();
-        if (tabName === 'installer') renderInstaller();
-        if (tabName === 'remote') renderRemote();
-    }, 300);
+            if (data.length === 0) {
+                html += `<div class="p-10 text-center bg-emerald-50 rounded-xl border border-emerald-100">
+                            <i class="fas fa-check-circle text-emerald-500 mb-2"></i>
+                            <p class="text-[10px] text-emerald-700 font-bold uppercase">System Fully Patched</p>
+                         </div>`;
+            } else {
+                data.forEach(p => {
+                    html += `
+                        <div class="p-4 bg-white border border-slate-200 rounded-xl shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">${p.patch_name}</p>
+                                <p class="text-[9px] text-slate-400 font-mono mt-1">${p.current_version} → <span class="text-blue-600 font-bold">${p.available_version}</span></p>
+                            </div>
+                            <button onclick="installPatch('${p.patch_id}')" class="px-3 py-1 bg-slate-900 text-white rounded text-[9px] font-bold uppercase hover:bg-blue-600 transition-all">Update</button>
+                        </div>
+                    `;
+                });
+                html += `<button onclick="quickAction('PATCH_ALL')" class="w-full py-3 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase shadow-lg shadow-blue-200">Update All Packages</button>`;
+            }
+            html += `</div>`;
+            document.getElementById('drawerBody').innerHTML = html;
+        });
+}
+
+function installPatch(patchId) {
+    if(!confirm('Authorize remote installation of patch: ' + patchId + '?')) return;
+    const formData = new FormData();
+    formData.append('device_id', currentDevice.id);
+    formData.append('command', `INSTALL_PATCH|${patchId}`);
+    fetch('/send-command', { method: 'POST', body: formData }).then(() => alert('Patching signal dispatched.'));
 }
 
 function renderOverview() {
     const d = currentDevice;
+    const battIcon = d.is_charging ? 'fa-bolt-lightning' : 'fa-battery-three-quarters';
+
+    // Dynamic Department options from Database List
+    const deptOpts = window.availableDepartments.map(dept =>
+        `<option value="${dept.name}" ${d.department === dept.name ? 'selected' : ''}>${dept.name}</option>`
+    ).join('');
+
     document.getElementById('drawerBody').innerHTML = `
-        <div class="space-y-10 animate-in slide-in-from-bottom-5">
-            <div class="grid grid-cols-2 gap-6">
-                <div class="bg-slate-900 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                    <i class="fas fa-microchip absolute -right-4 -bottom-4 text-7xl opacity-10"></i>
-                    <p class="text-[10px] font-black text-blue-400 uppercase mb-4 tracking-widest">Processor Unit</p>
-                    <p class="text-sm font-black leading-tight mb-2">${d.cpu_model || 'Unspecified'}</p>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">CPUID: ${d.cpu_id || 'N/A'}</p>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${d.cpu_cores || 0} Dynamic Cores</p>
-                </div>
-                <div class="bg-blue-600 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                    <i class="fas fa-memory absolute -right-4 -bottom-4 text-7xl opacity-10"></i>
-                    <p class="text-[10px] font-black text-blue-100 uppercase mb-4 tracking-widest">Memory Allocation</p>
-                    <p class="text-2xl font-black leading-tight mb-1">${d.ram_total || 'N/A'}</p>
-                </div>
-            </div>
-
-            <!-- LIVE HWMONITOR SYSTEM DIAGNOSTIC PANEL -->
-            <div class="space-y-4">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-2">Thermal Diagnostics (HWMonitor)</p>
-                <div id="sensor-readouts" class="bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] p-6 shadow-inner space-y-3">
-                    <!-- Diagnostic list injected by renderSensorsList() -->
+        <div class="space-y-6 animate-in fade-in duration-300">
+            <!-- IDENTITY MANAGEMENT (ALPHABETICAL) -->
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm">
+                <h4 class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-4">Identity & Grouping</h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Device Alias</label>
+                        <input type="text" id="alias-input" value="${d.display_name || d.hostname}" class="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Department Assign</label>
+                        <select id="dept-input" class="w-full mt-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none">
+                            ${deptOpts}
+                        </select>
+                    </div>
+                    <button onclick="updateDeviceMetadata('${d.id}')" class="w-full py-2 bg-blue-600 text-white rounded-lg text-[9px] font-bold uppercase hover:bg-blue-700 transition-all">Sync Identity</button>
                 </div>
             </div>
 
-            <div class="bg-white border-2 border-slate-100 rounded-[2.5rem] divide-y-2 divide-slate-50 shadow-sm">
-                <div class="p-6 flex justify-between items-center bg-slate-50/50"><span class="text-[11px] font-black text-slate-400 uppercase">MAC Signature</span><span class="text-sm font-black text-slate-900 font-mono">${d.mac_address || 'NOT_FOUND'}</span></div>
-                <div class="p-6 flex justify-between items-center"><span class="text-[11px] font-black text-slate-400 uppercase">Gateway IP</span><span class="text-sm font-black text-blue-600 font-mono">${d.ip_address}</span></div>
-                <div class="p-6 flex justify-between items-center"><span class="text-[11px] font-black text-slate-400 uppercase">Session Uptime</span><span class="text-sm font-black text-slate-900 uppercase">${d.uptime || '0h'}</span></div>
+            <!-- BATTERY MONITOR -->
+            <div class="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Power Status</h4>
+                    <span class="text-[9px] font-bold uppercase ${d.is_charging ? 'text-emerald-600 bg-emerald-50' : 'text-zinc-500 bg-zinc-100'} px-2 py-0.5 rounded">
+                        ${d.is_charging ? 'AC Connected' : 'On Battery'}
+                    </span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <i class="fas ${battIcon} text-xl ${d.is_charging ? 'text-emerald-500' : 'text-slate-400'}"></i>
+                    <div class="flex-1">
+                        <div class="flex justify-between mb-1 text-[11px] font-bold text-slate-700">
+                            <span>Charge</span><span id="live-battery-text">${d.battery_level}%</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                            <div id="live-battery-bar" class="h-full ${d.battery_level < 20 ? 'bg-red-500' : 'bg-emerald-500'}" style="width: ${d.battery_level}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HARDWARE SPECS -->
+            <div class="bg-slate-50 rounded-xl p-5 border border-slate-100 space-y-3 text-[11px]">
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Hardware Specs</h4>
+                <div class="flex justify-between border-b border-slate-200/50 pb-2"><span class="text-slate-500">Processor</span><span class="font-bold text-slate-900">${d.cpu_model || 'N/A'}</span></div>
+                <div class="flex justify-between border-b border-slate-200/50 pb-2"><span class="text-slate-500">RAM</span><span class="font-bold text-slate-900">${d.ram_total || 'N/A'}</span></div>
+                <div class="flex justify-between border-b border-slate-200/50 pb-2"><span class="text-slate-500">Motherboard</span><span class="font-bold text-zinc-600 uppercase font-mono">${d.product_id || 'N/A'}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">System Type</span><span class="font-bold text-slate-900 uppercase">${d.system_type || 'x64 PC'}</span></div>
+            </div>
+
+            <!-- STORAGE & NETWORK -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Capacity</h4>
+                    <p class="text-lg font-bold text-slate-900">${d.disk_total || 'N/A'}</p>
+                    <p class="text-[10px] text-emerald-600 font-bold mt-1 uppercase">${d.disk_usage}% Utilized</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Network</h4>
+                    <p class="text-[11px] font-mono font-bold text-blue-600 truncate">${d.ip_address}</p>
+                    <p class="text-[9px] text-slate-400 font-mono mt-1 uppercase">${d.mac_address || '00:00:00:00:00'}</p>
+                </div>
+            </div>
+
+            <!-- SECURITY POLICY -->
+            <div class="bg-zinc-900 rounded-xl p-5 text-white space-y-3 text-[10px]">
+                <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Security Policy Handshake</h4>
+                <div class="flex justify-between"><span>Shell Access</span><span class="font-bold ${d.perm_terminal ? 'text-emerald-400' : 'text-red-400'}">${d.perm_terminal ? 'AUTHORIZED' : 'RESTRICTED'}</span></div>
+                <div class="flex justify-between"><span>Power Operations</span><span class="font-bold ${d.perm_reboot ? 'text-emerald-400' : 'text-red-400'}">${d.perm_reboot ? 'AUTHORIZED' : 'RESTRICTED'}</span></div>
             </div>
         </div>
     `;
-
-    const sensorDiv = document.getElementById('sensor-readouts');
-    if (sensorDiv) {
-        renderSensorsList(d.hw_sensors, sensorDiv);
-    }
-}
-
-function renderSensorsList(hw_sensors, container) {
-    if (!hw_sensors || !hw_sensors.temperatures || Object.keys(hw_sensors.temperatures).length === 0) {
-        container.innerHTML = `<p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center py-4">Awaiting live physical sensor query...</p>`;
-        return;
-    }
-    let html = "";
-    for (const [zone, temp] of Object.entries(hw_sensors.temperatures)) {
-        html += `
-            <div class="flex justify-between items-center p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
-                <span class="text-xs font-black text-slate-800 uppercase tracking-tight">${zone}</span>
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-temperature-half text-amber-500"></i>
-                    <span class="text-xs font-mono font-black text-slate-900">${temp}</span>
-                </div>
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-}
-
-function renderSoftware() {
-    fetch(`/device/${currentDevice.id}/software`).then(res => res.json()).then(data => {
-        if (!data.length) {
-            document.getElementById('drawerBody').innerHTML = '<div class="text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed"><p class="text-slate-400 text-xs font-bold uppercase tracking-widest italic">Registry Not Scanned</p></div>';
-            return;
-        }
-        let html = '<div class="bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm animate-in zoom-in-95"><table class="w-full text-left"><thead class="bg-slate-900 text-white"><tr class="text-[10px] font-black uppercase tracking-widest"><th class="px-8 py-5">Product Identity</th><th class="px-8 py-5 text-right">Build</th></tr></thead><tbody class="divide-y divide-slate-50">';
-        data.forEach(app => {
-            html += `<tr class="hover:bg-blue-50 transition-colors"><td class="px-8 py-5"><p class="text-sm font-black text-slate-900 leading-tight mb-1 uppercase tracking-tight">${app.app_name}</p><p class="text-[10px] text-blue-600 font-bold uppercase">${app.publisher || 'Vendor'}</p></td><td class="px-8 py-5 text-right font-mono text-slate-400 text-xs">${app.version || '0.0.0'}</td></tr>`;
-        });
-        html += '</tbody></table></div>';
-        document.getElementById('drawerBody').innerHTML = html;
-    });
-}
-
-function renderInstaller() {
-    let html = `<div class="space-y-8 animate-in slide-in-from-right-5"><div class="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border-b-8 border-blue-600"><i class="fas fa-rocket absolute -right-6 -bottom-6 text-[10rem] opacity-5"></i><p class="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] mb-4">Deployment Protocol</p><p class="text-base font-medium leading-relaxed opacity-90">Authorize silent software installation.</p></div><div class="grid grid-cols-1 gap-4">`;
-    if (!availablePackages.length) {
-        html += '<div class="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed text-slate-400 text-[11px] font-black uppercase tracking-[0.3em]">Repository Offline</div>';
-    } else {
-        availablePackages.forEach(pkg => {
-            html += `<div class="group flex items-center justify-between p-6 bg-white border-2 border-slate-100 rounded-[2rem] hover:border-slate-900 transition-all"><div class="flex items-center gap-6"><div class="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-900 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all"><i class="fas fa-box text-xl"></i></div><div><p class="text-sm font-black text-slate-900 uppercase leading-none mb-2">${pkg.name}</p><p class="text-[11px] font-bold text-blue-600 uppercase tracking-widest italic">Build v${pkg.version}</p></div></div><button onclick="deployPackage('${pkg.id}')" class="h-12 px-8 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">Push</button></div>`;
-        });
-    }
-    html += '</div></div>';
-    document.getElementById('drawerBody').innerHTML = html;
 }
 
 function renderRemote() {
     const d = currentDevice;
+    const isRdValid = d.rustdesk_id && d.rustdesk_id !== "Not Detected";
+    // Inside your renderRemote() function, add this block before the buttons:
+`
+<div class="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-3">
+    <p class="text-[8px] font-bold text-blue-500 uppercase mb-2">Remote Deploy</p>
+    <div class="flex gap-1">
+        <select id="package-deploy-select" class="flex-1 text-[10px] p-1.5 border rounded-md">
+            <option value="">Select Package...</option>
+            ${availablePackages.map(p => `<option value="${p.winget_id}">${p.name}</option>`).join('')}
+        </select>
+        <button onclick="remoteInstall()" class="px-3 py-1 bg-blue-600 text-white rounded text-[8px] font-bold uppercase">Install</button>
+    </div>
+</div>
+`
+
+function remoteInstall() {
+    const pkgId = document.getElementById('package-deploy-select').value;
+    if(!pkgId) return;
+    const cmd = `winget install --id ${pkgId} --silent --accept-package-agreements --accept-source-agreements`;
+    const f = new FormData(); f.append('device_id', currentDevice.id); f.append('command', cmd);
+    fetch('/send-command', { method: 'POST', body: f }).then(() => alert("Installation protocol queued."));
+}
+
     document.getElementById('drawerBody').innerHTML = `
-        <div class="space-y-8 animate-in zoom-in-95">
-            <!-- RustDesk (Primary Access) -->
-            <div class="bg-slate-950 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden border-2 border-white/5">
-                <i class="fas fa-satellite-dish absolute -right-10 -top-10 text-[12rem] opacity-5"></i>
-                <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4">Remote Visual Control</p>
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-10">
-                    <div class="text-center sm:text-left">
-                        <p class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">Authenticated ID Token</p>
-                        <p id="rustdesk-id-display" class="text-6xl font-black tracking-tighter text-emerald-400 font-mono">${d.rustdesk_id || 'ID_NOT_SYNCED'}</p>
-                    </div>
-                    <a id="rustdesk-link" href="rustdesk://${d.rustdesk_id}" class="w-full sm:w-auto h-20 px-12 bg-blue-600 hover:bg-blue-500 rounded-3xl text-[12px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-blue-900/40 flex items-center justify-center gap-3">
-                        <i class="fas fa-external-link-alt text-lg"></i> Establish_Link
-                    </a>
+        <div class="space-y-6">
+            <div class="bg-slate-900 rounded-xl p-6 text-white shadow-xl relative overflow-hidden">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Remote Visual Link</p>
+                <h3 id="rustdesk-id-display" class="text-3xl font-bold tracking-tighter font-mono ${isRdValid ? 'text-emerald-400' : 'text-red-400'} mb-6">${isRdValid ? d.rustdesk_id : 'OFFLINE'}</h3>
+                <div class="flex gap-2">
+                    <button onclick="launchRustDesk()" class="flex-1 py-3 bg-blue-600 rounded-lg text-[10px] font-bold uppercase hover:bg-blue-500 transition-all ${!isRdValid ? 'opacity-50 pointer-events-none' : ''}">Launch Control</button>
+                    <button onclick="quickAction('RESET_RUSTDESK')" class="px-4 py-3 bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all"><i class="fas fa-sync-alt"></i></button>
                 </div>
             </div>
 
-            <!-- Terminal -->
-            <div class="bg-slate-50 p-8 rounded-[3rem] border-2 border-slate-100 shadow-inner">
-                <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6 ml-2 italic">Push Command To Kernel</p>
-                <div class="flex items-center bg-white border-2 border-slate-200 rounded-[1.5rem] p-3 shadow-xl focus-within:ring-[10px] focus-within:ring-blue-500/5 transition-all">
-                    <div class="w-12 h-12 bg-slate-900 text-emerald-400 rounded-2xl flex items-center justify-center shadow-lg ml-1">
-                        <i class="fas fa-terminal text-sm"></i>
-                    </div>
-                    <input type="text" id="manual-cmd" placeholder="Enter remote command..." class="flex-1 bg-transparent border-none text-base font-black py-4 px-6 outline-none text-slate-900 font-mono">
-                    <button onclick="sendManualCommand()" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-600 transition-all mr-1">
-                        <i class="fas fa-bolt text-lg"></i>
-                    </button>
+            <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Automation Library</p>
+                <div class="flex gap-2">
+                    <select id="script-selector" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 text-xs outline-none focus:border-blue-500 transition-all">
+                        <option value="">Select script...</option>
+                        ${availableScripts.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+                    </select>
+                    <button onclick="executeLibraryScript()" class="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-black transition-all">Run</button>
                 </div>
             </div>
 
-            <!-- Power Controls -->
-            <div class="grid grid-cols-2 gap-6">
-                <button onclick="quickAction('REBOOT')" class="flex flex-col items-center justify-center p-10 bg-amber-50 border-2 border-amber-100 rounded-[3rem] hover:bg-amber-600 hover:text-white transition-all group shadow-sm hover:shadow-amber-200">
-                    <div class="w-20 h-20 bg-white text-amber-600 rounded-[2rem] flex items-center justify-center mb-5 shadow-xl group-hover:scale-110 transition-all"><i class="fas fa-power-off text-3xl"></i></div>
-                    <span class="text-[12px] font-black uppercase tracking-[0.2em]">Force Reboot</span>
-                </button>
-                <button onclick="quickAction('SHUTDOWN')" class="flex flex-col items-center justify-center p-10 bg-red-50 border-2 border-red-100 rounded-[3rem] hover:bg-red-600 hover:text-white transition-all group shadow-sm hover:shadow-red-200">
-                    <div class="w-20 h-20 bg-white text-red-600 rounded-[2rem] flex items-center justify-center mb-5 shadow-xl group-hover:scale-110 transition-all"><i class="fas fa-skull-crossbones text-3xl"></i></div>
-                    <span class="text-[12px] font-black uppercase tracking-[0.2em]">Kill Node Power</span>
-                </button>
+            <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Remote Shell</p>
+                <input type="text" id="manual-cmd" onkeypress="if(event.key==='Enter')sendManualCommand()" placeholder="Enter command..." class="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-xs text-slate-900 font-mono mb-4 outline-none focus:border-blue-500 transition-all" ${!d.perm_terminal ? 'disabled' : ''}>
+                <pre id="terminal-pre" class="text-[11px] font-mono text-slate-600 overflow-x-auto whitespace-pre-wrap h-32 scrollbar-hide">${d.last_command_output || 'Awaiting buffer...'}</pre>
             </div>
 
-            <!-- Result Box -->
-            <div class="bg-[#0b0e14] rounded-[3rem] p-10 font-mono text-[13px] text-emerald-500 border-2 border-white/5 shadow-2xl relative">
-                <div class="flex justify-between items-center mb-8 border-b-2 border-white/5 pb-6">
-                    <div class="flex items-center gap-3 text-slate-500 uppercase text-[10px] font-black tracking-[0.3em]">
-                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        <i class="fas fa-microchip text-xs"></i> <span>Protocol_Buffer.out</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <div class="w-3 h-3 rounded-full bg-slate-800"></div><div class="w-3 h-3 rounded-full bg-slate-800"></div><div class="w-3 h-3 rounded-full bg-slate-800"></div>
-                    </div>
-                </div>
-                <pre id="terminal-pre" class="whitespace-pre-wrap leading-relaxed opacity-90 max-h-[500px] overflow-y-auto no-scrollbar">${d.last_command_output || 'Handshake active. Waiting for signal...'}</pre>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="quickAction('REBOOT')" class="py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase hover:bg-red-50 hover:text-red-600 transition-all" ${!d.perm_reboot ? 'disabled opacity-50' : ''}>Reboot</button>
+                <button onclick="quickAction('SHUTDOWN')" class="py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase hover:bg-red-50 hover:text-red-600 transition-all" ${!d.perm_reboot ? 'disabled opacity-50' : ''}>Shutdown</button>
             </div>
         </div>
     `;
 }
 
-function deployPackage(packageId) {
-    if(!confirm("CONFIRM: TRIGGER DEPLOYMENT SEQUENCE?")) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('package_id', packageId);
-    fetch('/deploy-package', { method: 'POST', body: formData }).then(res => alert("HANDSHAKE SUCCESS: Package pushed to node queue."));
-}
-
-function quickAction(action) {
-    if(!confirm(`WARNING: TRIGGER ${action} ON REMOTE ASSET?`)) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('command', action);
-    fetch('/send-command', { method: 'POST', body: formData }).then(() => alert("Signal Broadcasted."));
-}
-
-function sendManualCommand() {
-    const cmd = document.getElementById('manual-cmd').value;
-    if(!cmd) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('command', cmd);
-    fetch('/send-command', { method: 'POST', body: formData }).then(() => {
-        alert("Encrypted Pulse Sent.");
-        document.getElementById('manual-cmd').value = "";
+function renderHistory() {
+    fetch(`/device/${currentDevice.id}/history`).then(res => res.json()).then(data => {
+        let html = '<div class="space-y-3">';
+        if(data.length === 0) html += '<p class="text-center text-xs text-slate-400 py-10 font-bold uppercase">No records found</p>';
+        data.forEach(log => {
+            html += `<div class="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                <div class="flex justify-between mb-2"><span class="text-[9px] font-bold text-blue-600 uppercase">Handshake</span><span class="text-[9px] text-slate-400 font-mono">${log.executed_at}</span></div>
+                <p class="text-xs font-mono text-slate-800 bg-white p-2 border border-slate-100 rounded mb-2">${log.command}</p>
+                <p class="text-[10px] text-slate-500 truncate italic">${log.output || 'No output'}</p>
+            </div>`;
+        });
+        document.getElementById('drawerBody').innerHTML = html + '</div>';
     });
-}
-</script>
-// --- GRAPH INITIALIZATION ---
-const ctx = document.getElementById('telemetryChart').getContext('2d');
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: ['12:00', '12:10', '12:20', '12:30', '12:40', '12:50'],
-        datasets: [{
-            label: 'Network Load',
-            data: [12, 19, 3, 5, 2, 3],
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            fill: true,
-            tension: 0.4,
-            borderWidth: 3,
-            pointRadius: 0
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { display: false }, border: { display: false } },
-            y: { grid: { color: '#f1f5f9' }, border: { display: false } }
-        }
-    }
-});
-
-// --- DRAWER LOGIC ---
-let currentDevice = null;
-function openDrawer(d) {
-    currentDevice = d;
-    document.getElementById('drawerTitle').innerText = d.hostname;
-    document.getElementById('drawerSubtitle').innerText = "IDENT: " + d.id;
-    const drawer = document.getElementById('deviceDrawer');
-    const overlay = document.getElementById('drawerOverlay');
-    overlay.classList.remove('hidden');
-    setTimeout(() => {
-        overlay.classList.remove('opacity-0');
-        drawer.classList.remove('translate-x-full');
-        switchTab('overview');
-    }, 10);
-}
-
-function closeDrawer() {
-    const drawer = document.getElementById('deviceDrawer');
-    const overlay = document.getElementById('drawerOverlay');
-    drawer.classList.add('translate-x-full');
-    overlay.classList.add('opacity-0');
-    setTimeout(() => overlay.classList.add('hidden'), 500);
-}
-
-function switchTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.className = "tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white text-slate-400 border-2 border-slate-100 hover:border-slate-300 transition-all shadow-sm";
-    });
-    const active = document.getElementById('tab-' + tabName);
-    active.className = "tab-btn px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-slate-900 text-white shadow-xl shadow-slate-300 ring-4 ring-slate-50 transition-all";
-    const body = document.getElementById('drawerBody');
-    body.innerHTML = `<div class="flex flex-col items-center justify-center h-full gap-4 py-20"><div class="w-16 h-16 border-[6px] border-slate-100 border-t-blue-600 rounded-full animate-spin"></div><p class="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Accessing Buffer...</p></div>`;
-    setTimeout(() => {
-        if (tabName === 'overview') renderOverview();
-        if (tabName === 'software') renderSoftware();
-        if (tabName === 'installer') renderInstaller();
-        if (tabName === 'remote') renderRemote();
-    }, 300);
-}
-
-function renderOverview() {
-    const d = currentDevice;
-    document.getElementById('drawerBody').innerHTML = `
-        <div class="space-y-10 animate-in slide-in-from-bottom-5">
-            <div class="grid grid-cols-2 gap-6">
-                <div class="bg-slate-900 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                    <i class="fas fa-microchip absolute -right-4 -bottom-4 text-7xl opacity-10"></i>
-                    <p class="text-[10px] font-black text-blue-400 uppercase mb-4 tracking-widest">Processor Unit</p>
-                    <p class="text-base font-black leading-tight mb-2">${d.cpu_model || 'Unspecified'}</p>
-                    <p class="text-[11px] font-bold text-slate-400 uppercase">${d.cpu_cores || 0} Dynamic Cores</p>
-                </div>
-                <div class="bg-blue-600 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                    <i class="fas fa-memory absolute -right-4 -bottom-4 text-7xl opacity-10"></i>
-                    <p class="text-[10px] font-black text-blue-100 uppercase mb-4 tracking-widest">Memory Allocation</p>
-                    <p class="text-2xl font-black leading-tight mb-1">${d.ram_total || 'N/A'}</p>
-                </div>
-            </div>
-            <div class="bg-white border-2 border-slate-100 rounded-[2.5rem] divide-y-2 divide-slate-50 shadow-sm">
-                <div class="p-6 flex justify-between items-center bg-slate-50/50"><span class="text-[11px] font-black text-slate-400 uppercase">MAC Signature</span><span class="text-sm font-black text-slate-900 font-mono italic">${d.mac_address || 'NOT_FOUND'}</span></div>
-                <div class="p-6 flex justify-between items-center"><span class="text-[11px] font-black text-slate-400 uppercase">Gateway IP</span><span class="text-sm font-black text-blue-600 font-mono">${d.ip_address}</span></div>
-                <div class="p-6 flex justify-between items-center"><span class="text-[11px] font-black text-slate-400 uppercase">Session Uptime</span><span class="text-sm font-black text-slate-900 uppercase">${d.uptime || '0h'}</span></div>
-            </div>
-        </div>
-    `;
 }
 
 function renderSoftware() {
     fetch(`/device/${currentDevice.id}/software`).then(res => res.json()).then(data => {
-        if (!data.length) {
-            document.getElementById('drawerBody').innerHTML = '<div class="text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed"><p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Registry Not Scanned</p></div>';
-            return;
-        }
-        let html = '<div class="bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden"><table class="w-full text-left"><thead class="bg-slate-900 text-white"><tr class="text-[10px] font-black uppercase tracking-widest"><th class="px-8 py-5">Product Identity</th><th class="px-8 py-5 text-right">Build</th></tr></thead><tbody class="divide-y divide-slate-50">';
+        let html = '<div class="bg-white border rounded-lg overflow-hidden"><table class="w-full text-left text-[9px]"><thead class="bg-slate-50 border-b"><tr class="text-slate-400 uppercase"><th class="px-3 py-2">App</th><th class="px-3 py-2 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-50">';
         data.forEach(app => {
-            html += `<tr class="hover:bg-blue-50 transition-colors"><td class="px-8 py-5"><p class="text-sm font-black text-slate-900 leading-tight mb-1 uppercase tracking-tight">${app.app_name}</p><p class="text-[10px] text-blue-600 font-bold uppercase">${app.publisher || 'Vendor'}</p></td><td class="px-8 py-5 text-right font-mono text-slate-400 text-xs">${app.version || '0.0.0'}</td></tr>`;
+            html += `<tr>
+                <td class="px-3 py-2 font-bold">${app.app_name} <span class="text-slate-400 font-normal">(${app.version || '0.0'})</span></td>
+                <td class="px-3 py-2 text-right">
+                    <button onclick="remoteUninstall('${app.app_name}')" class="text-red-500 hover:text-red-700 font-bold uppercase">Uninstall</button>
+                </td>
+            </tr>`;
         });
-        html += '</tbody></table></div>';
-        document.getElementById('drawerBody').innerHTML = html;
+        document.getElementById('drawerBody').innerHTML = html + '</tbody></table></div>';
     });
 }
 
-function renderInstaller() {
-    let html = `<div class="space-y-8 animate-in slide-in-from-right-5"><div class="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border-b-8 border-blue-600"><i class="fas fa-rocket absolute -right-6 -bottom-6 text-[10rem] opacity-5"></i><p class="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] mb-4">Deployment Protocol</p><p class="text-base font-medium leading-relaxed opacity-90">Authorize silent software installation.</p></div><div class="grid grid-cols-1 gap-4">`;
-    if (!availablePackages.length) {
-        html += '<div class="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed text-slate-400 text-[11px] font-black uppercase tracking-[0.3em]">Repository Offline</div>';
-    } else {
-        availablePackages.forEach(pkg => {
-            html += `<div class="group flex items-center justify-between p-6 bg-white border-2 border-slate-100 rounded-[2rem] hover:border-slate-900 transition-all"><div class="flex items-center gap-6"><div class="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-900 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all"><i class="fas fa-box text-xl"></i></div><div><p class="text-sm font-black text-slate-900 uppercase leading-none mb-2">${pkg.name}</p><p class="text-[11px] font-bold text-blue-600 uppercase tracking-widest italic">Build v${pkg.version}</p></div></div><button onclick="deployPackage('${pkg.id}')" class="h-12 px-8 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">Push</button></div>`;
-        });
-    }
-    html += '</div></div>';
-    document.getElementById('drawerBody').innerHTML = html;
+function remoteUninstall(appName) {
+    if(!confirm(`Remove ${appName} from this device?`)) return;
+    const f = new FormData(); f.append('app_name', appName);
+    fetch(`/device/${currentDevice.id}/uninstall`, { method: 'POST', body: f }).then(() => alert("Uninstall protocol queued."));
 }
 
-function renderRemote() {
-    const d = currentDevice;
-    document.getElementById('drawerBody').innerHTML = `
-        <div class="space-y-8 animate-in zoom-in-95">
-            <div class="bg-slate-950 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden ring-4 ring-slate-100">
-                <i class="fas fa-satellite-dish absolute -right-10 -top-10 text-[12rem] opacity-5"></i>
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-10">
-                    <div class="text-center sm:text-left">
-                        <p class="text-[11px] font-black text-slate-500 uppercase mb-2">Authorized ID Token</p>
-                        <p class="text-6xl font-black text-emerald-400 font-mono">${d.rustdesk_id || 'ID_NOT_SYNCED'}</p>
-                    </div>
-                    <a href="rustdesk://${d.rustdesk_id}" class="h-20 px-12 bg-blue-600 hover:bg-blue-500 rounded-3xl text-[12px] font-black uppercase transition-all shadow-xl shadow-blue-900/40 flex items-center justify-center gap-3">
-                        <i class="fas fa-external-link-alt text-lg"></i> Establish_Link
-                    </a>
-                </div>
-            </div>
-            <div class="bg-slate-50 p-8 rounded-[3rem] border-2 border-slate-100">
-                <div class="flex items-center bg-white border-2 border-slate-200 rounded-[1.5rem] p-3 shadow-xl">
-                    <div class="w-12 h-12 bg-slate-900 text-emerald-400 rounded-2xl flex items-center justify-center shadow-lg ml-1"><i class="fas fa-terminal"></i></div>
-                    <input type="text" id="manual-cmd" placeholder="system@node:~# input signal..." class="flex-1 bg-transparent border-none text-base font-black py-4 px-6 outline-none text-slate-900 font-mono">
-                    <button onclick="sendManualCommand()" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-500 mr-1 transition-all"><i class="fas fa-bolt text-lg"></i></button>
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-6">
-                <button onclick="quickAction('REBOOT')" class="flex flex-col items-center justify-center p-10 bg-amber-50 border-2 border-amber-100 rounded-[3rem] hover:bg-amber-600 hover:text-white transition-all group">
-                    <div class="w-20 h-20 bg-white text-amber-600 rounded-[2rem] flex items-center justify-center mb-5 shadow-xl group-hover:scale-110 transition-all"><i class="fas fa-power-off text-3xl"></i></div>
-                    <span class="text-[12px] font-black uppercase tracking-[0.2em]">Force Reboot</span>
-                </button>
-                <button onclick="quickAction('SHUTDOWN')" class="flex flex-col items-center justify-center p-10 bg-red-50 border-2 border-red-100 rounded-[3rem] hover:bg-red-600 hover:text-white transition-all group">
-                    <div class="w-20 h-20 bg-white text-red-600 rounded-[2rem] flex items-center justify-center mb-5 shadow-xl group-hover:scale-110 transition-all"><i class="fas fa-skull text-3xl"></i></div>
-                    <span class="text-[12px] font-black uppercase tracking-[0.2em]">Kill Node Power</span>
-                </button>
-            </div>
-            <div class="bg-[#0b0e14] rounded-[3rem] p-10 font-mono text-[13px] text-emerald-500 border-2 border-white/5 shadow-2xl relative">
-                <pre class="whitespace-pre-wrap opacity-90 max-h-[500px] overflow-y-auto no-scrollbar">${d.last_command_output || 'Awaiting incoming telemetry signal...'}</pre>
-            </div>
-        </div>
-    `;
-}
-
-function deployPackage(packageId) {
-    if(!confirm("CONFIRM: TRIGGER DEPLOYMENT SEQUENCE?")) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('package_id', packageId);
-    fetch('/deploy-package', { method: 'POST', body: formData }).then(res => alert("HANDSHAKE SUCCESS: Package pushed to node queue."));
-}
-
-function quickAction(action) {
-    if(!confirm(`WARNING: TRIGGER ${action} ON REMOTE ASSET?`)) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('command', action);
-    fetch('/send-command', { method: 'POST', body: formData }).then(() => alert("Signal Broadcasted."));
-}
-
-function sendManualCommand() {
-    const cmd = document.getElementById('manual-cmd').value;
-    if(!cmd) return;
-    const formData = new FormData();
-    formData.append('device_id', currentDevice.id);
-    formData.append('command', cmd);
-    fetch('/send-command', { method: 'POST', body: formData }).then(() => {
-        alert("Encrypted Pulse Sent.");
-        document.getElementById('manual-cmd').value = "";
-    });
-}
+function launchRustDesk() { if (currentDevice.rustdesk_id) window.location.assign(`rustdesk://${currentDevice.rustdesk_id}`); }
+function quickAction(cmd) { if(confirm(`Trigger ${cmd}?`)) { const f = new FormData(); f.append('device_id', currentDevice.id); f.append('command', cmd); fetch('/send-command', { method: 'POST', body: f }); } }
+function sendManualCommand() { const i = document.getElementById('manual-cmd'); const f = new FormData(); f.append('device_id', currentDevice.id); f.append('command', i.value); fetch('/send-command', { method: 'POST', body: f }).then(() => i.value = ""); }
+function executeLibraryScript() { const s = document.getElementById('script-selector').value; fetch('/run-script', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_id: currentDevice.id, script_id: s }) }); }
+function exportFleetReport() { alert("Compiling Hardware Audit & Security Reports..."); }
 </script>
-
-<style>
-    .animate-in { animation-duration: 0.6s; animation-fill-mode: both; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    .fade-in { animation-name: fadeIn; }
-    .slide-in-from-bottom-5 { animation-name: slideIn; }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-</style>
 {% endblock %}

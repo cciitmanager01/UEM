@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="max-w-full mx-auto animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h1 class="text-xl font-black text-slate-900 uppercase">Geofencing Control</h1>
+            <p class="text-[10px] text-slate-400 font-bold uppercase">Tracking {{ devices|length }} Total Endpoints</p>
+        </div>
+    </div>
+
+    <div class="flex-1 flex gap-4 overflow-hidden">
+        <!-- SIDEBAR: USER LIST -->
+        <div class="w-64 bg-white border border-slate-200 rounded-2xl overflow-y-auto p-4 shadow-sm hidden md:block">
+            <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Active Fleet</h3>
+            <div class="space-y-2">
+                {% for d in devices %}
+                <div onclick="focusUser({{ d.latitude }}, {{ d.longitude }})"
+                     class="p-3 rounded-xl border border-slate-50 hover:border-blue-200 hover:bg-blue-50 cursor-pointer transition-all group">
+                    <p class="text-xs font-bold text-slate-900 truncate uppercase">{{ d.display_name or d.hostname }}</p>
+                    <p class="text-[9px] text-slate-400 font-medium">{{ d.city or 'Locating...' }}</p>
+                    {% if not d.latitude %}
+                    <span class="text-[8px] text-red-400 font-bold uppercase">No GPS Data</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- THE MAP -->
+        <div class="flex-1 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm relative">
+            <div id="map" class="w-full h-full"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let map;
+    const markers = {};
+
+    function focusUser(lat, lon) {
+        if (lat && lon) {
+            map.flyTo([lat, lon], 14);
+        } else {
+            alert("This device has not reported GPS coordinates yet.");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Init Map
+        map = L.map('map').setView([12.8797, 121.7740], 6); // Centered on Philippines
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const devices = {{ devices | tojson }};
+        const bounds = [];
+
+        devices.forEach(d => {
+            if(d.latitude && d.longitude) {
+                // Create a custom icon or circle
+                const marker = L.circleMarker([d.latitude, d.longitude], {
+                    radius: 10,
+                    fillColor: d.is_online ? "#10b981" : "#94a3b8",
+                    color: "#fff",
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div class="p-2">
+                        <p class="text-xs font-black uppercase text-slate-900 mb-1">${d.display_name or d.hostname}</p>
+                        <p class="text-[10px] text-blue-600 font-bold uppercase">${d.city || 'Unknown'}</p>
+                        <hr class="my-2">
+                        <a href="/?manage=${d.id}" class="inline-block bg-slate-900 text-white px-3 py-1 rounded text-[8px] font-bold uppercase">Manage Node</a>
+                    </div>
+                `);
+
+                bounds.push([d.latitude, d.longitude]);
+            }
+        });
+
+        // Auto-zoom to fit all users
+        if(bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    });
+</script>
+
+<style>
+    /* Make the map look modern */
+    .leaflet-container { font-family: 'Inter', sans-serif !important; background: #f8fafc !important; }
+    .leaflet-popup-content-wrapper { border-radius: 15px; padding: 0; overflow: hidden; }
+    .leaflet-popup-tip-container { display: none; }
+</style>
+{% endblock %}

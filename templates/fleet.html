@@ -3,122 +3,155 @@
 
 <div class="max-w-full mx-auto animate-in fade-in duration-500">
 
-    <!-- SECTION 1: HEADER & ADVANCED FILTERS -->
-    <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
+    <!-- SECTION 1: HEADER & FILTERS -->
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
         <div>
-            <nav class="flex items-center gap-2 text-[11px] font-black text-blue-600 uppercase tracking-widest mb-2">
+            <nav class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
                 <i class="fas fa-desktop"></i>
-                <span>Asset Management</span>
-                <i class="fas fa-chevron-right text-[8px] text-slate-300"></i>
-                <span class="text-slate-400">Endpoint Fleet</span>
+                <span>Assets</span>
+                <i class="fas fa-chevron-right text-[8px]"></i>
+                <span class="text-slate-900">Endpoint Fleet</span>
             </nav>
-            <!-- REMOVED ITALIC -->
-            <h1 class="text-3xl font-bold text-slate-900 tracking-tight leading-none uppercase">Endpoint Fleet</h1>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2 ml-1">Advanced Asset Directory</p>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight leading-none uppercase">Endpoint Fleet</h1>
+            <p class="text-xs text-slate-500 mt-2">Manage and monitor {{ devices|length }} high-detail hardware assets.</p>
         </div>
 
-        <!-- SEARCH & FILTER BENTO -->
+        <!-- SEARCH & FILTER -->
         <div class="flex flex-wrap items-center gap-3">
-            <!-- Search Bar -->
             <div class="relative group">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                     <i class="fas fa-search text-xs"></i>
                 </div>
-                <input type="text" id="fleetSearch" onkeyup="filterFleet()" placeholder="Search Hostname, UUID, or User..."
-                    class="h-12 w-full sm:w-80 pl-11 pr-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/5 transition-all shadow-sm">
+                <input type="text" id="fleetSearch" onkeyup="filterFleet()" placeholder="Search alias, hostname, or dept..."
+                    class="h-10 w-full sm:w-72 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 outline-none focus:border-slate-900 transition-all shadow-sm">
             </div>
 
-            <!-- OS Filter -->
+            <!-- ADDED: Department Filter -->
+            <div class="relative">
+                <select id="deptFilter" onchange="filterFleet()"
+                    class="h-10 pl-4 pr-10 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-700 outline-none cursor-pointer hover:border-slate-300 shadow-sm appearance-none">
+                    <option value="all">All Departments</option>
+                    <!-- Options injected by JS -->
+                </select>
+                <i class="fas fa-users absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]"></i>
+            </div>
+
             <div class="relative">
                 <select id="osFilter" onchange="filterFleet()"
-                    class="h-12 pl-4 pr-10 bg-white border-2 border-slate-100 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-700 outline-none cursor-pointer hover:border-slate-300 shadow-sm appearance-none">
+                    class="h-10 pl-4 pr-10 bg-white border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-700 outline-none cursor-pointer hover:border-slate-300 shadow-sm appearance-none">
                     <option value="all">All Platforms</option>
                     <option value="windows">Windows OS</option>
                     <option value="mac">macOS / Unix</option>
                 </select>
-                <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]"></i>
+                <i class="fas fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[8px]"></i>
             </div>
         </div>
     </div>
 
-    <!-- SECTION 2: BULK ACTION OVERLAY -->
-    <div id="bulkBar" class="hidden bg-slate-900 rounded-[2rem] p-4 mb-8 flex items-center justify-between shadow-2xl border-b-4 border-blue-500 animate-in slide-in-from-top-4">
-        <div class="flex items-center gap-6 ml-6">
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
-                <span class="text-white font-black text-xs uppercase tracking-widest"><span id="selectedCount" class="text-blue-400">0</span> Nodes Selected</span>
-            </div>
+    <!-- SECTION 2: BULK ACTION BAR -->
+    <div id="bulkBar" class="hidden bg-slate-900 rounded-xl p-4 mb-8 items-center justify-between shadow-lg border-l-4 border-blue-500 animate-in slide-in-from-top-2">
+        <div class="flex items-center gap-4 ml-4">
+            <span class="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span class="text-white font-bold text-[10px] uppercase tracking-widest"><span id="selectedCount" class="text-blue-400">0</span> Nodes Selected</span>
         </div>
         <div class="flex gap-2">
-            <button onclick="bulkCommand('REBOOT')" class="px-6 py-2.5 bg-white/10 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all border border-white/5">Bulk Reboot</button>
-            <button onclick="bulkCommand('UPDATE')" class="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-blue-500 transition-all shadow-lg">Push Protocol Update</button>
+            <button onclick="bulkCommand('REBOOT')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg text-[10px] font-bold uppercase hover:text-white transition-all border border-slate-700">Bulk Reboot</button>
+            <button onclick="bulkCommand('FETCH_PROCESSES')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-blue-500 transition-all shadow-sm">Sync Telemetry</button>
         </div>
     </div>
 
     <!-- SECTION 3: DATA GRID -->
-    <div class="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden mb-10">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-10">
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse" id="fleetTable">
+            <table class="w-full text-left" id="fleetTable">
                 <thead>
-                    <tr class="bg-slate-50/50 border-b-2 border-slate-100">
-                        <th class="px-8 py-6 w-10">
+                    <tr class="bg-slate-50 border-b border-slate-100">
+                        <th class="px-6 py-4 w-10">
                             <input type="checkbox" id="selectAll" onclick="toggleAllCheckboxes()"
-                                class="w-5 h-5 rounded-lg border-2 border-slate-200 text-blue-600 focus:ring-0 cursor-pointer transition-all">
+                                class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer">
                         </th>
-                        <th class="px-6 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Node Identity</th>
-                        <th class="px-6 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Protocol Status</th>
-                        <th class="px-6 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Hardware Specifications</th>
-                        <th class="px-6 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">Network Config</th>
-                        <th class="px-10 py-6 text-right text-[11px] font-black text-slate-500 uppercase tracking-widest">Handshake</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Node Identity</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Status & Power</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hardware Architecture</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Storage</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Network</th>
+                        <th class="px-8 py-4 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y-2 divide-slate-50">
+                <tbody class="divide-y divide-slate-50 text-[11px]">
                     {% for d in devices %}
-                    <tr class="fleet-row hover:bg-slate-50/50 transition-all group" data-os="{{ d.platform | lower }}" data-search="{{ d.hostname | lower }} {{ d.id | lower }} {{ d.username | lower }}">
-                        <!-- Checkbox -->
-                        <td class="px-8 py-8">
-                            <input type="checkbox" class="device-checkbox w-5 h-5 rounded-lg border-2 border-slate-200 text-blue-600 focus:ring-0 cursor-pointer transition-all" value="{{ d.id }}" onclick="updateBulkBar()">
+                    <!-- UPDATED: data-dept and enhanced data-search for full filtering support -->
+                    <tr class="fleet-row hover:bg-slate-50/50 transition-all group"
+                        data-os="{{ d.platform | lower }}"
+                        data-dept="{{ d.department or 'Unassigned' }}"
+                        data-search="{{ d.display_name | lower }} {{ d.hostname | lower }} {{ d.id | lower }} {{ d.username | lower }} {{ d.department | lower }}">
+                        <td class="px-6 py-5">
+                            <input type="checkbox" class="device-checkbox w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer" value="{{ d.id }}" onclick="updateBulkBar()">
                         </td>
 
-                        <!-- Identity -->
-                        <td class="px-6 py-8">
-                            <div class="flex items-center gap-5">
-                                <div class="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border-2 border-white ring-2 ring-slate-100
-                                    {{ 'bg-sky-50 text-sky-600' if 'Windows' in d.platform else 'bg-slate-900 text-white' }}">
-                                    {% if 'Windows' in d.platform %}<i class="fab fa-windows text-xl"></i>
-                                    {% else %}<i class="fab fa-apple text-xl"></i>{% endif %}
+                        <!-- Node Identity (UPDATED with Alias and Dept Badge) -->
+                        <td class="px-6 py-5">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center border border-slate-100 bg-white text-slate-400 group-hover:text-slate-900 transition-colors">
+                                    {% if 'Windows' in d.platform %}<i class="fab fa-windows text-base"></i>
+                                    {% else %}<i class="fab fa-apple text-base"></i>{% endif %}
                                 </div>
                                 <div>
-                                    <p class="text-base font-black text-slate-900 leading-none mb-1 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{{ d.hostname }}</p>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">UUID: <span class="text-slate-700 font-black">{{ d.id }}</span></p>
+                                    <p class="text-sm font-bold text-slate-900 leading-none mb-1 uppercase tracking-tight">{{ d.display_name or d.hostname }}</p>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{{ d.hostname }}</p>
+                                        <span class="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-bold uppercase">{{ d.department or 'Unassigned' }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </td>
 
-                        <!-- Protocol Status -->
-                        <td class="px-6 py-8 text-center">
-                            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase border-2 {{ 'bg-emerald-50 text-emerald-700 border-emerald-100' if d.is_online else 'bg-slate-50 text-slate-400 border-slate-100' }}">
-                                <span class="w-1.5 h-1.5 rounded-full {{ 'bg-emerald-500 animate-pulse' if d.is_online else 'bg-slate-300' }}"></span>
-                                {{ 'Synchronized' if d.is_online else 'Offline' }}
+                        <!-- Status & Battery -->
+                        <td class="px-6 py-5 text-center">
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase {{ 'bg-emerald-50 text-emerald-700' if d.is_online else 'bg-slate-100 text-slate-400' }}">
+                                    <span class="w-1 h-1 rounded-full {{ 'bg-emerald-500 animate-pulse' if d.is_online else 'bg-slate-300' }}"></span>
+                                    {{ 'Sync' if d.is_online else 'Offline' }}
+                                </span>
+                                {% if d.battery_level is not none %}
+                                <div class="flex items-center gap-1.5 text-slate-400" title="{{ 'Charging' if d.is_charging else 'Discharging' }}">
+                                    <i class="fas {{ 'fa-bolt-lightning text-emerald-500' if d.is_charging else 'fa-battery-half' }} text-[10px]"></i>
+                                    <span class="font-bold text-slate-600">{{ d.battery_level }}%</span>
+                                </div>
+                                {% endif %}
                             </div>
                         </td>
 
-                        <!-- Hardware -->
-                        <td class="px-6 py-8">
-                            <p class="text-sm font-black text-slate-800 leading-tight mb-1 uppercase tracking-tight">{{ d.cpu_model or 'Unspecified_CPU' }}</p>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ d.ram_total or 'N/A' }} Total Physical Memory</p>
+                        <!-- Detailed Hardware -->
+                        <td class="px-6 py-5">
+                            <p class="font-bold text-slate-700 leading-tight mb-1 truncate max-w-[150px]">{{ d.cpu_model or 'Unknown CPU' }}</p>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{{ d.ram_total or 'N/A' }}</span>
+                                <span class="text-slate-400 font-medium italic">{{ d.system_type or 'x64' }}</span>
+                            </div>
+                        </td>
+
+                        <!-- Storage Detail -->
+                        <td class="px-6 py-5">
+                            <div class="space-y-1">
+                                <p class="font-bold text-slate-800">{{ d.disk_total or '---' }}</p>
+                                <div class="w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                    <div class="h-full {{ 'bg-red-500' if d.disk_usage > 90 else 'bg-emerald-500' }}" style="width: {{ d.disk_usage or 0 }}%"></div>
+                                </div>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase">{{ d.disk_usage or 0 }}% Used</p>
+                            </div>
                         </td>
 
                         <!-- Network -->
-                        <td class="px-6 py-8">
-                            <p class="text-sm font-black text-blue-600 font-mono tracking-tight">{{ d.ip_address }}</p>
-                            <p class="text-[10px] font-black text-slate-400 uppercase mt-1">Operator: {{ d.username }}</p>
+                        <td class="px-6 py-5">
+                            <p class="text-xs font-bold text-blue-600 font-mono tracking-tight">{{ d.ip_address }}</p>
+                            <p class="text-[9px] text-slate-400 font-mono uppercase mt-0.5">{{ d.mac_address or '00:00:00:00:00:00' }}</p>
                         </td>
 
                         <!-- Manage Action -->
-                        <td class="px-10 py-8 text-right">
-                            <button onclick='openDrawer({{ d | tojson }})' class="h-11 px-6 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-600 hover:shadow-lg transition-all active:scale-95">
-                                Manage_Node
+                        <td class="px-8 py-5 text-right">
+                            <button onclick='openDrawer({{ d | tojson }})' class="h-9 px-4 rounded-lg bg-zinc-900 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-black transition-all shadow-sm">
+                                Manage
                             </button>
                         </td>
                     </tr>
@@ -130,22 +163,52 @@
 </div>
 
 <script>
+/**
+ * INITIALIZATION: Load Departments
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/departments')
+        .then(res => res.json())
+        .then(data => {
+            const deptFilter = document.getElementById('deptFilter');
+            data.forEach(dept => {
+                const opt = document.createElement('option');
+                opt.value = dept.name;
+                opt.innerText = dept.name;
+                deptFilter.appendChild(opt);
+            });
+        });
+});
+
+/**
+ * LIVE SEARCH & FILTERING (Updated for Department Filter)
+ */
 function filterFleet() {
     const searchQuery = document.getElementById('fleetSearch').value.toLowerCase();
     const osFilter = document.getElementById('osFilter').value;
+    const deptFilter = document.getElementById('deptFilter').value;
     const rows = document.querySelectorAll('.fleet-row');
 
     rows.forEach(row => {
         const searchData = row.getAttribute('data-search');
         const osData = row.getAttribute('data-os');
+        const deptData = row.getAttribute('data-dept');
+
         const matchesSearch = searchData.includes(searchQuery);
+
         const matchesOS = (osFilter === 'all') ||
                           (osFilter === 'windows' && osData.includes('windows')) ||
                           (osFilter === 'mac' && (osData.includes('darwin') || osData.includes('mac')));
-        row.style.display = (matchesSearch && matchesOS) ? '' : 'none';
+
+        const matchesDept = (deptFilter === 'all') || (deptData === deptFilter);
+
+        row.style.display = (matchesSearch && matchesOS && matchesDept) ? '' : 'none';
     });
 }
 
+/**
+ * BULK ACTION LOGIC
+ */
 function toggleAllCheckboxes() {
     const master = document.getElementById('selectAll');
     const checks = document.querySelectorAll('.device-checkbox');
@@ -169,23 +232,29 @@ function updateBulkBar() {
 
 function bulkCommand(cmd) {
     const selected = Array.from(document.querySelectorAll('.device-checkbox:checked')).map(c => c.value);
-    if (!confirm("AUTHORIZE BULK PROTOCOL: " + cmd + " on " + selected.length + " nodes?")) return;
+    if (!confirm(`Authorize bulk ${cmd} protocol on ${selected.length} nodes?`)) return;
+
     selected.forEach(id => {
         const formData = new FormData();
         formData.append('device_id', id);
         formData.append('command', cmd);
         fetch('/send-command', { method: 'POST', body: formData });
     });
-    alert("BULK HANDSHAKE INITIATED.");
+    alert("Bulk Handshake Initiated.");
+}
+
+function openDrawer(d) {
+    // Redirecting to Dashboard and triggering the management drawer via URL param
+    window.location.href = "/?manage=" + d.id;
 }
 </script>
 
 <style>
-    /* Styling for the checkbox for high visibility */
     .device-checkbox:checked {
-        background-color: #2563eb;
-        border-color: #2563eb;
+        background-color: #0f172a;
+        border-color: #0f172a;
     }
     input::placeholder { color: #cbd5e1; }
+    .fleet-row { transition: background-color 0.2s ease; }
 </style>
 {% endblock %}

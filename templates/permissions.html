@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-10">
+        <h1 class="text-2xl font-bold text-zinc-900 uppercase tracking-tight">Access Control Policy</h1>
+        <p class="text-sm text-zinc-500 mt-1">Define what operations are permitted on each individual node.</p>
+    </div>
+
+    <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+        <table class="w-full text-left">
+            <thead class="bg-zinc-50 border-b border-zinc-200">
+                <tr class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                    <th class="px-8 py-4">Node</th>
+                    <th class="px-6 py-4">Remote Shell</th>
+                    <th class="px-6 py-4">Power Ops</th>
+                    <th class="px-6 py-4">Remote View</th>
+                    <th class="px-8 py-4 text-right">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+                {% for d in devices %}
+                <tr>
+                    <td class="px-8 py-6">
+                        <p class="text-sm font-bold text-zinc-900">{{ d.hostname }}</p>
+                        <p class="text-[10px] font-mono text-zinc-400">{{ d.id }}</p>
+                    </td>
+                    <td class="px-6 py-6">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" {% if d.perm_terminal %}checked{% endif %} 
+                                   onchange="togglePerm('{{ d.id }}', this, 'terminal')">
+                            <div class="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900"></div>
+                        </label>
+                    </td>
+                    <td class="px-6 py-6">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" {% if d.perm_reboot %}checked{% endif %}
+                                   onchange="togglePerm('{{ d.id }}', this, 'reboot')">
+                            <div class="w-9 h-5 bg-zinc-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900"></div>
+                        </label>
+                    </td>
+                    <td class="px-6 py-6">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" {% if d.perm_rustdesk %}checked{% endif %}
+                                   onchange="togglePerm('{{ d.id }}', this, 'rustdesk')">
+                            <div class="w-9 h-5 bg-zinc-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900"></div>
+                        </label>
+                    </td>
+                    <td class="px-8 py-6 text-right">
+                        <span id="status-{{ d.id }}" class="text-[10px] font-bold text-zinc-300 uppercase tracking-widest">Saved</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function togglePerm(deviceId, el, type) {
+    const status = document.getElementById('status-' + deviceId);
+    status.innerText = "Syncing...";
+    status.classList.add('text-blue-500');
+
+    // Get current values for this row
+    const row = el.closest('tr');
+    const terminal = row.querySelector('input[onchange*="terminal"]').checked;
+    const reboot = row.querySelector('input[onchange*="reboot"]').checked;
+    const rustdesk = row.querySelector('input[onchange*="rustdesk"]').checked;
+
+    fetch('/update-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId, terminal, reboot, rustdesk })
+    }).then(() => {
+        setTimeout(() => {
+            status.innerText = "Saved";
+            status.classList.remove('text-blue-500');
+        }, 500);
+    });
+}
+</script>
+{% endblock %}

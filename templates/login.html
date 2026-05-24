@@ -1,114 +1,103 @@
 {% extends 'base.html' %}
 {% block auth_content %}
-<div class="min-h-screen flex items-center justify-center p-6 bg-slate-50 relative overflow-hidden">
-    <!-- Technical Background Pattern (Matches PIN Gate) -->
-    <div class="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#020617 1px, transparent 1px); background-size: 30px 30px;"></div>
+<div class="min-h-screen w-full flex items-center justify-center p-6 bg-[#fafafa]">
 
-    <div class="relative z-10 w-full max-w-[460px]">
-        <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-[0_20px_50px_rgba(2,6,23,0.05)] overflow-hidden">
+    <div class="w-full max-w-[440px] animate-in fade-in zoom-in-95 duration-500">
 
-            <!-- Security Header -->
-            <div class="p-8 pb-0 text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-950 rounded-2xl text-emerald-400 mb-6 shadow-xl shadow-slate-200 ring-1 ring-white/10">
-                    <i class="fas fa-user-shield text-2xl"></i>
+        <!-- Main Card -->
+        <div class="bg-white border border-zinc-200 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+
+            <!-- Minimalist Header -->
+            <div class="pt-10 pb-6 text-center">
+                <div class="inline-flex items-center justify-center w-12 h-12 bg-zinc-900 rounded-2xl text-white mb-4 shadow-lg shadow-zinc-200">
+                    <i class="fas fa-id-card-clip text-lg"></i>
                 </div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">CCI.UEM ACCESS</h1>
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">2nd Layer Authentication</p>
+                <h1 class="text-xl font-bold text-zinc-900 tracking-tight">Console Authentication</h1>
+                <p class="text-xs text-zinc-500 mt-1 font-medium">Step 2: Provide administrative credentials</p>
             </div>
 
-            <!-- Handshake Progress (Step 2 Active) -->
-            <div class="px-10 py-8">
-                <div class="flex items-center justify-between mb-10 relative">
-                    <div class="absolute top-5 left-0 w-full h-[2px] bg-slate-100 -z-10"></div>
-
-                    <!-- Step 1: Completed -->
-                    <div class="flex flex-col items-center gap-2">
-                        <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs border-4 border-white shadow-sm">
-                            <i class="fas fa-check"></i>
-                        </div>
-                        <span class="text-[9px] font-black text-emerald-600 uppercase">PIN_Verified</span>
+            <!-- Handshake Stepper (Refined) -->
+            <div class="px-10 py-4 flex items-center justify-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] border border-emerald-100">
+                        <i class="fas fa-check"></i>
                     </div>
-                    <!-- Step 2: Active -->
-                    <div class="flex flex-col items-center gap-2">
-                        <div class="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs border-4 border-white shadow-[0_0_15px_rgba(15,23,42,0.2)] animate-pulse">
-                            <i class="fas fa-id-card-clip"></i>
-                        </div>
-                        <span class="text-[9px] font-black text-slate-900 uppercase">Credentials</span>
-                    </div>
-                    <!-- Step 3: Pending -->
-                    <div class="flex flex-col items-center gap-2 opacity-30">
-                        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs border-4 border-white">
-                            <i class="fas fa-terminal"></i>
-                        </div>
-                        <span class="text-[9px] font-black text-slate-400 uppercase">Console</span>
-                    </div>
+                    <div class="h-[1px] w-8 bg-emerald-100"></div>
                 </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[10px] ring-4 ring-zinc-50">
+                        2
+                    </div>
+                    <div class="h-[1px] w-8 bg-zinc-100"></div>
+                </div>
+                <div class="w-6 h-6 rounded-full bg-zinc-50 text-zinc-300 flex items-center justify-center text-[10px] border border-zinc-100">
+                    3
+                </div>
+            </div>
 
-                <form method="POST" class="space-y-5">
+            <!-- Form Content -->
+            <div class="px-10 pb-10 pt-6">
+                <form method="POST" class="space-y-6">
                     <!-- Username -->
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Administrator ID</label>
-                        <div class="relative mt-2">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                                <i class="fas fa-terminal text-[10px]"></i>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Administrator ID</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-400">
+                                <i class="fas fa-user text-xs"></i>
                             </div>
-                            <input type="text" name="username" required placeholder="UID-ADMIN-01"
-                                class="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-slate-950 focus:bg-white focus:ring-8 focus:ring-slate-900/5 transition-all duration-300 text-sm font-bold text-slate-900 placeholder:text-slate-200">
+                            <input type="text" name="username" required placeholder="admin"
+                                class="w-full pl-10 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-zinc-900 focus:bg-white transition-all text-sm font-medium text-zinc-900 placeholder:text-zinc-300">
                         </div>
                     </div>
 
                     <!-- Password -->
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Master Password</label>
-                        <div class="relative mt-2">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                                <i class="fas fa-key text-[10px]"></i>
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-1">Master Password</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-400">
+                                <i class="fas fa-key text-xs"></i>
                             </div>
                             <input type="password" name="password" required placeholder="••••••••"
-                                class="w-full pl-10 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-slate-950 focus:bg-white focus:ring-8 focus:ring-slate-900/5 transition-all duration-300 text-sm font-bold text-slate-900 placeholder:text-slate-200">
+                                class="w-full pl-10 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-zinc-900 focus:bg-white transition-all text-sm font-medium text-zinc-900 placeholder:text-zinc-300">
                         </div>
                     </div>
 
                     {% if error %}
-                        <div class="flex items-center justify-center gap-2 text-red-500 bg-red-50 py-3 rounded-2xl border border-red-100 animate-shake">
-                            <i class="fas fa-shield-exclamation text-xs"></i>
-                            <p class="text-[10px] font-black uppercase tracking-tight">{{ error }}</p>
+                        <div class="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 animate-shake">
+                            <i class="fas fa-circle-exclamation text-xs"></i>
+                            <p class="text-[11px] font-bold uppercase tracking-tight">{{ error }}</p>
                         </div>
                     {% endif %}
 
-                    <button type="submit" class="group w-full py-5 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-black hover:shadow-2xl hover:shadow-slate-300 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3">
-                        Decrypt Console
-                        <i class="fas fa-unlock-keyhole text-[10px] group-hover:scale-125 transition-transform"></i>
+                    <button type="submit" class="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-black active:scale-[0.98] transition-all shadow-md shadow-zinc-200">
+                        Authorize Access
                     </button>
                 </form>
             </div>
 
-            <!-- Bento Diagnostic Footer (Matches PIN Gate) -->
-            <div class="bg-slate-50 p-6 border-t border-slate-100 grid grid-cols-2 gap-4">
-                <div class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-slate-950 text-emerald-400 flex items-center justify-center text-[10px]">
-                        <i class="fas fa-fingerprint"></i>
-                    </div>
+            <!-- Simplified Bento Footer -->
+            <div class="bg-zinc-50/50 p-5 border-t border-zinc-100 grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-3 px-3">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                     <div>
-                        <p class="text-[8px] font-black text-slate-400 uppercase leading-none">Identity</p>
-                        <p class="text-[9px] font-bold text-slate-900 mt-1 uppercase">Confirmed</p>
+                        <p class="text-[10px] font-bold text-zinc-900 uppercase">PIN Verified</p>
+                        <p class="text-[9px] text-zinc-400 font-medium">Stage 01 Clean</p>
                     </div>
                 </div>
-                <div class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-slate-950 text-sky-400 flex items-center justify-center text-[10px]">
-                        <i class="fas fa-vault"></i>
-                    </div>
+                <div class="flex items-center gap-3 px-3 border-l border-zinc-200">
+                    <i class="fas fa-link text-zinc-400 text-xs"></i>
                     <div>
-                        <p class="text-[8px] font-black text-slate-400 uppercase leading-none">Security</p>
-                        <p class="text-[9px] font-bold text-slate-900 mt-1 uppercase">Layer_02</p>
+                        <p class="text-[10px] font-bold text-zinc-900 uppercase">Secure Link</p>
+                        <p class="text-[9px] text-zinc-400 font-medium">AES-256 Enabled</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="mt-8 flex items-center justify-center gap-6">
-            <a href="/logout" class="group flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-red-500 transition-colors uppercase tracking-[0.2em]">
-                <i class="fas fa-power-off transition-transform group-hover:rotate-90"></i>
+        <!-- Back Link -->
+        <div class="mt-8 text-center">
+            <a href="/logout" class="text-[11px] font-bold text-zinc-400 hover:text-zinc-900 transition-colors uppercase tracking-widest flex items-center justify-center gap-2">
+                <i class="fas fa-arrow-left-long text-[10px]"></i>
                 Reset Handshake
             </a>
         </div>
@@ -118,9 +107,11 @@
 <style>
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-6px); }
-        75% { transform: translateX(6px); }
+        25% { transform: translateX(-4px); }
+        75% { transform: translateX(4px); }
     }
-    .animate-shake { animation: shake 0.3s ease-in-out; }
+    .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+
+    input::placeholder { font-weight: 400; opacity: 0.6; }
 </style>
 {% endblock %}

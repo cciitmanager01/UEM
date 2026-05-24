@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-full mx-auto animate-in fade-in duration-500">
+
+    <!-- HEADER & EXPORT ACTIONS -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 uppercase tracking-tight">IT Asset Inventory</h1>
+            <p class="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Full Technical Audit & Hardware Registry</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="window.print()" class="h-9 px-4 bg-white border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold uppercase hover:bg-slate-50 transition-all flex items-center gap-2">
+                <i class="fas fa-print"></i> Print PDF
+            </button>
+            <a href="/reports/assets/excel" class="h-9 px-4 bg-emerald-600 text-white rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-sm">
+                <i class="fas fa-file-excel"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap gap-3 items-center">
+        <div class="relative flex-1 min-w-[300px]">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="assetSearch" onkeyup="filterAssets()" placeholder="Search Serial, Hostname, Alias or User..." 
+                   class="w-full pl-9 pr-4 py-2 bg-slate-50 border-transparent rounded-lg text-xs font-bold outline-none focus:bg-white focus:border-blue-500 transition-all">
+        </div>
+        <select id="deptFilter" onchange="filterAssets()" class="h-9 px-3 bg-slate-50 border-transparent rounded-lg text-[10px] font-bold uppercase outline-none focus:border-blue-500">
+            <option value="all">All Departments</option>
+            <!-- Dynamic departments can be injected here -->
+        </select>
+        <div class="text-[10px] font-black text-slate-400 uppercase ml-auto px-2">
+            Total Assets: <span class="text-slate-900">{{ devices|length }}</span>
+        </div>
+    </div>
+
+    <!-- HIGH-DETAIL AUDIT TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-12">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" id="assetTable">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-[9px] font-black text-slate-500 uppercase tracking-tighter">
+                        <th class="px-4 py-4">Status</th>
+                        <th class="px-4 py-4">Identity / Alias</th>
+                        <th class="px-4 py-4">Department</th>
+                        <th class="px-4 py-4">Motherboard Serial</th>
+                        <th class="px-4 py-4">Processor</th>
+                        <th class="px-4 py-4">Memory</th>
+                        <th class="px-4 py-4">Storage</th>
+                        <th class="px-4 py-4">Network (MAC)</th>
+                        <th class="px-4 py-4">OS Version</th>
+                        <th class="px-4 py-4 text-right">Last Sync</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for d in devices %}
+                    <tr class="asset-row hover:bg-blue-50/30 transition-all text-[10px]" 
+                        data-dept="{{ d.department or 'Unassigned' }}"
+                        data-search="{{ d.id }} {{ d.display_name }} {{ d.hostname }} {{ d.product_id }} {{ d.username }}">
+                        
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full {{ 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' if d.is_online else 'bg-slate-300' }}"></span>
+                                <span class="font-black uppercase text-[8px] {{ 'text-emerald-600' if d.is_online else 'text-slate-400' }}">
+                                    {{ 'Live' if d.is_online else 'Offline' }}
+                                </span>
+                            </div>
+                        </td>
+                        
+                        <td class="px-4 py-3">
+                            <p class="font-black text-slate-900 uppercase leading-none">{{ d.display_name or d.hostname }}</p>
+                            <p class="text-[8px] font-mono text-slate-400 mt-1 uppercase tracking-tighter">{{ d.id }}</p>
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded font-black border border-blue-100 uppercase text-[8px]">
+                                {{ d.department or 'Unassigned' }}
+                            </span>
+                        </td>
+
+                        <td class="px-4 py-3 font-mono font-bold text-slate-600 uppercase">{{ d.product_id or 'N/A' }}</td>
+                        
+                        <td class="px-4 py-3">
+                            <p class="font-bold text-slate-700 truncate max-w-[120px]">{{ d.cpu_model }}</p>
+                        </td>
+
+                        <td class="px-4 py-3 font-black text-slate-900">{{ d.ram_total or 'N/A' }}</td>
+
+                        <td class="px-4 py-3">
+                            <p class="font-bold text-slate-700">{{ d.disk_total }}</p>
+                            <p class="text-[8px] text-slate-400 uppercase font-black">{{ d.disk_usage }}% Utilized</p>
+                        </td>
+
+                        <td class="px-4 py-3 font-mono text-slate-500 uppercase">{{ d.mac_address }}</td>
+
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <i class="fab {{ 'fa-windows text-blue-400' if 'Windows' in d.platform else 'fa-apple text-slate-900' }}"></i>
+                                <span class="font-bold">{{ d.os_version[:15] }}...</span>
+                            </div>
+                        </td>
+
+                        <td class="px-4 py-3 text-right font-mono text-slate-400">{{ d.last_seen[:16] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterAssets() {
+    const query = document.getElementById('assetSearch').value.toLowerCase();
+    const dept = document.getElementById('deptFilter').value;
+    const rows = document.querySelectorAll('.asset-row');
+
+    rows.forEach(row => {
+        const text = row.dataset.search.toLowerCase();
+        const rowDept = row.dataset.dept;
+        const matchesSearch = text.includes(query);
+        const matchesDept = (dept === 'all' || rowDept === dept);
+        
+        row.style.display = (matchesSearch && matchesDept) ? '' : 'none';
+    });
+}
+
+// Load Departments into the dropdown
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/departments').then(res => res.json()).then(data => {
+        const select = document.getElementById('deptFilter');
+        data.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.name; opt.innerText = d.name;
+            select.appendChild(opt);
+        });
+    });
+});
+</script>
+
+<style>
+@media print {
+    /* Hide navigation and filters when printing the audit form */
+    aside, header, .flex.gap-2, .bg-white.p-3 { display: none !important; }
+    main { padding: 0 !important; margin: 0 !important; }
+    .bg-white { border: none !important; shadow: none !important; }
+    table { font-size: 8px !important; }
+    .max-w-full { max-width: 100% !important; }
+}
+</style>
+{% endblock %}

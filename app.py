@@ -1,5 +1,7 @@
 import requests # Add this at the top
 from openpyxl import Workbook
+from fpdf import FPDF # Add this to your imports
+
 
 import datetime
 import os
@@ -9,9 +11,7 @@ import socket
 import threading
 import time
 
-import pandas as pd
 from io import BytesIO
-from xhtml2pdf import pisa
 from flask import make_response
 
 import serial
@@ -801,6 +801,9 @@ def export_pms_excel():
 
 
 # --- EXPORT TO PDF (F-ASM-06 Style) ---
+from fpdf import FPDF  # Add this to your imports
+
+
 @app.route('/pms/export/pdf/<schedule_id>')
 @login_required
 def export_pms_pdf(schedule_id):
@@ -811,44 +814,62 @@ def export_pms_pdf(schedule_id):
     if not log:
         return "Log not found", 404
 
-    # HTML Template for the PDF (Official Form Style)
-    html_content = f"""
-    <html>
-    <head><style>
-        body {{ font-family: Helvetica; font-size: 10px; }}
-        .header {{ text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th, td {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
-        .box {{ width: 10px; height: 10px; border: 1px solid black; display: inline-block; }}
-    </style></head>
-    <body>
-        <div class="header">
-            <h1>PREVENTIVE MAINTENANCE CHECKLIST</h1>
-            <p>Form Ref: F-ASM-06 | Device ID: {log['pms_schedules']['devices']['id']}</p>
-        </div>
-        <table>
-            <tr><th>Asset Name</th><td>{log['pms_schedules']['devices']['display_name']}</td></tr>
-            <tr><th>Department</th><td>{log['pms_schedules']['devices']['department']}</td></tr>
-            <tr><th>Performed By</th><td>{log['performed_by']}</td></tr>
-            <tr><th>Actual Date</th><td>{log['pms_schedules']['actual_date']}</td></tr>
-        </table>
-        <h3>Checkpoints</h3>
-        <p>1. Blower/Dust: {"[X] PASS" if log['checkpoints'].get('1') else "[ ] N/A"}</p>
-        <p>2. Fan Lubrication: {"[X] PASS" if log['checkpoints'].get('2') else "[ ] N/A"}</p>
-        <p>3. Peripherals: {"[X] PASS" if log['checkpoints'].get('3') else "[ ] N/A"}</p>
-        <h3>Remarks</h3>
-        <p>{log['remarks'] or 'No remarks recorded.'}</p>
-    </body>
-    </html>
-    """
+    device = log['pms_schedules']['devices']
+    schedule = log['pms_schedules']
 
-    # Convert HTML to PDF
-    result = BytesIO()
-    pisa_status = pisa.CreatePDF(html_content, dest=result)
+    # Create PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
 
-    result.seek(0)
-    return send_file(result, download_name=f"Checklist_{schedule_id}.pdf", as_attachment=True,
-                     mimetype='application/pdf')
+    # Header
+    pdf.cell(0, 10, "PREVENTIVE MAINTENANCE CHECKLIST", ln=True, align='C')
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 10, f"Form Ref: F-ASM-06 | Schedule ID: {schedule_id}", ln=True, align='C')
+    pdf.ln(5)
+
+    # Table Header
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(40, 10, "Field", border=1, fill=True)
+    pdf.cell(0, 10, "Details", border=1, fill=True, ln=True)
+
+    # Data Rows
+    pdf.set_font("Helvetica", "", 10)
+    data = [
+        ["Asset Name", device.get('display_name') or device.get('hostname')],
+        ["Department", device.get('department')],
+        ["Performed By", log.get('performed_by', 'Admin')],
+        ["Actual Date", schedule.get('actual_date')],
+        ["Status", "COMPLETED"]
+    ]
+
+    for item in data:
+        pdf.cell(40, 10, item[0], border=1)
+        pdf.cell(0, 10, str(item[1]), border=1, ln=True)
+
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 10, "Maintenance Checkpoints", ln=True)
+
+    # Checkpoints
+    pdf.set_font("Helvetica", "", 10)
+    checkpoints = log.get('checkpoints', {})
+    pdf.cell(0, 8, f"[ {'X' if checkpoints.get('1') else ' '} ] 1. Blower Unit / Dust Removal", ln=True)
+    pdf.cell(0, 8, f"[ {'X' if checkpoints.get('2') else ' '} ] 2. Apply Oil/Grease in Fans", ln=True)
+    pdf.cell(0, 8, f"[ {'X' if checkpoints.get('3') else ' '} ] 3. Check Peripherals & Cables", ln=True)
+
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 10, "Technical Remarks:", ln=True)
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.multi_cell(0, 10, log.get('remarks') or "No remarks recorded.")
+
+    # Output PDF to memory
+    response_body = pdf.output()
+    out = BytesIO(response_body)
+
+    return send_file(out, download_name=f"F-ASM-06_{schedule_id}.pdf", mimetype='application/pdf')
 
 
 

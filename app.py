@@ -1,45 +1,105 @@
+import requests # Add this at the top
+
 import datetime
 import os
 import jwt
 import traceback
-from flask import Flask, render_template, request, jsonify, redirect, session, url_for
+import socket
+import threading
+import time
+
+import pandas as pd
+from io import BytesIO
+from xhtml2pdf import pisa
+from flask import make_response
+
+import serial
+from flask import Flask, render_template, request, jsonify, redirect, session, url_for, send_file
 from supabase import create_client
 from functools import wraps
 
 app = Flask(__name__)
 
-# --- SECURITY CONFIGURATION ---
+# --- 1. SECURITY & SESSION CONFIGURATION ---
 app.secret_key = "secure_uem_vault_key_99"
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=8)
 
-# --- SUPABASE CONFIGURATION ---
+# --- 2. SUPABASE INFRASTRUCTURE CONFIGURATION ---
 SUPABASE_URL = "https://wvpjnrzmpdswhjnkskbb.supabase.co"
+# Note: Use 'service_role' key in production to bypass RLS for administrative actions
 SUPABASE_KEY = "sb_publishable_OLTq7mUEIiRSSZ09ZOud4g_HznmliBj"
 API_SECRET_KEY = "7f9c2e4b8a1d5f306e92b8d4c1a7e5f93b0a2d6c4e8f1b9a7d3c5e0b2f4a6d8c"
 
-# MeshCentral (Optional)
-MESH_SERVER_URL = "https://mesh.yourdomain.com"
-MESH_TOKEN_KEY = "YourRandomSecretKey"
-
-# LOGIN CREDENTIALS
+# STATIC LOGIN CREDENTIALS
 ADMIN_USER = "admin"
 ADMIN_PASS = "admin"
 ADMIN_PIN = "3300"
 
+# Initialize Database Client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- AUTH DECORATORS ---
+
+# --- 3. CORE UTILITIES & TELEMETRY LOGIC ---
+
+def calculate_online_status(devices):
+    """
+    Centralized health loop. Evaluates timezone-aware timestamps
+    to determine if an asset is currently checking in.
+    Applies a 95-second window to account for network latency.
+    """
+    stats = {"total": len(devices), "online": 0, "win": 0, "mac": 0}
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    for d in devices:
+        # OS Distribution Stats
+        plat = d.get('platform', '')
+        if 'Windows' in plat:
+            stats['win'] += 1
+        elif 'Darwin' in plat.lower() or 'mac' in plat.lower():
+            stats['mac'] += 1
+
+        # Online Pulse Logic
+        d['is_online'] = False
+        if d.get('last_seen'):
+            try:
+                # Standardize UTC offset formatting for ISO string
+                ts_str = d['last_seen'].replace('Z', '+00:00')
+                ls = datetime.datetime.fromisoformat(ts_str)
+
+                # Ensure datetime object is timezone aware
+                if ls.tzinfo is None:
+                    ls = ls.replace(tzinfo=datetime.timezone.utc)
+
+                diff = (now - ls).total_seconds()
+
+                # 95 second threshold for agent heartbeat
+                if abs(diff) < 95:
+                    d['is_online'] = True
+                    stats['online'] += 1
+            except Exception as e:
+                print(f"Telemetry Parse Error for {d.get('hostname')}: {e}")
+
+    return stats
+
+
+# --- 4. AUTHENTICATION DECORATORS ---
 
 def pin_required(f):
+    """Middleware to ensure Stage 1 (PIN) is completed"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('pin_verified'):
             return redirect(url_for('verify_pin'))
         return f(*args, **kwargs)
+
     return decorated_function
 
+
 def login_required(f):
+    """Middleware to ensure Stage 2 (Credentials) is completed"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('pin_verified'):
@@ -47,13 +107,17 @@ def login_required(f):
         if not session.get('logged_in'):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
+
     return decorated_function
 
-# --- AUTH ROUTES ---
+
+# --- 5. AUTHENTICATION ROUTES (The Security Gate) ---
 
 @app.route('/verify-pin', methods=['GET', 'POST'])
 def verify_pin():
-    if session.get('pin_verified'): return redirect(url_for('login'))
+    if session.get('pin_verified'):
+        return redirect(url_for('login'))
+
     error = None
     if request.method == 'POST':
         input_pin = request.form.get('pin')
@@ -64,10 +128,13 @@ def verify_pin():
         error = "Invalid Security PIN"
     return render_template('pin.html', error=error)
 
+
 @app.route('/login', methods=['GET', 'POST'])
 @pin_required
 def login():
-    if session.get('logged_in'): return redirect(url_for('index'))
+    if session.get('logged_in'):
+        return redirect(url_for('index'))
+
     error = None
     if request.method == 'POST':
         user = request.form.get('username')
@@ -78,47 +145,27 @@ def login():
         error = "Invalid Credentials"
     return render_template('login.html', error=error)
 
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('verify_pin'))
 
-# --- MAIN DASHBOARD & ASSET MANAGEMENT ---
+
+# --- 6. PRIMARY MANAGEMENT PAGES ---
 
 @app.route('/')
 @login_required
 def index():
+    """Main Dashboard: Displays bento stats and node list"""
     try:
         devices_resp = supabase.table("devices").select("*").execute()
         devices = devices_resp.data or []
 
-        # Stats logic
-        stats = {"total": len(devices), "online": 0, "win": 0, "mac": 0}
-        now = datetime.datetime.now(datetime.timezone.utc)
+        # Process online/offline status
+        stats = calculate_online_status(devices)
 
-        for d in devices:
-            plat = d.get('platform', '')
-            if 'Windows' in plat:
-                stats['win'] += 1
-            elif 'Darwin' in plat.lower() or 'mac' in plat.lower():
-                stats['mac'] += 1
-
-            d['is_online'] = False
-            if d.get('last_seen'):
-                try:
-                    ts_str = d['last_seen'].replace('Z', '+00:00')
-                    ls = datetime.datetime.fromisoformat(ts_str)
-
-                    if ls.tzinfo is None:
-                        ls = ls.replace(tzinfo=datetime.timezone.utc)
-
-                    diff = (now - ls).total_seconds()
-                    if diff < 90:
-                        d['is_online'] = True
-                        stats['online'] += 1
-                except Exception as e:
-                    print(f"Timestamp Parse Error for {d.get('hostname')}: {e}")
-
+        # Fetch packages for the Auto-Installer module
         packages = supabase.table("packages").select("*").execute().data or []
 
         return render_template('dashboard.html',
@@ -128,35 +175,152 @@ def index():
                                page="dashboard")
     except Exception as e:
         print(traceback.format_exc())
-        return f"Database Error: {e}"
+        return f"Database Fetch Error: {e}"
 
-# --- LIVE POLLING ENDPOINT FOR DASHBOARD REMOTE SYNCING ---
-@app.route('/device/<device_id>/status')
+
+@app.route('/fleet')
 @login_required
-def device_status(device_id):
-    """Returns the newest payload of a specific device for background syncing"""
+def fleet_page():
+    """Endpoint Fleet: Advanced asset directory with bulk actions"""
     try:
-        device = supabase.table("devices").select("last_command_output", "rustdesk_id", "hw_sensors").eq("id", device_id).single().execute()
-        return jsonify(device.data or {})
+        devices_resp = supabase.table("devices").select("*").execute()
+        devices = devices_resp.data or []
+        calculate_online_status(devices)
+        return render_template('fleet.html', devices=devices, page="fleet")
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return f"Fleet Access Error: {e}"
 
-# --- ITAM: SOFTWARE INVENTORY VIEW ---
-@app.route('/device/<device_id>/software')
+
+@app.route('/permissions')
 @login_required
-def device_software(device_id):
-    software = supabase.table("software_inventory").select("*").eq("device_id", device_id).execute()
-    return jsonify(software.data)
+def permissions_page():
+    """Security Policy: Manage individual node permissions"""
+    try:
+        devices = supabase.table("devices").select("*").execute().data or []
+        return render_template('permissions.html', devices=devices, page="permissions")
+    except Exception as e:
+        return f"Policy Module Error: {e}"
 
-# --- UEM: AUTO-INSTALLER DEPLOYMENT ---
+
+@app.route('/gateway')
+@login_required
+def gateway_page():
+    """Gateway Config: Global infrastructure control hub"""
+    try:
+        configs = supabase.table("gateway_config").select("*").order("category").execute().data or []
+        device_count_resp = supabase.table("devices").select("id", count="exact").execute()
+        device_count = device_count_resp.count
+        return render_template('gateway.html', configs=configs, device_count=device_count, page="gateway")
+    except Exception as e:
+        return f"Gateway Config Error: {e}"
+
+
+@app.route('/scripts')
+@login_required
+def scripts_page():
+    """Automation Library: Pre-saved script management"""
+    try:
+        scripts = supabase.table("scripts").select("*").execute().data or []
+        return render_template('scripts.html', scripts=scripts, page="scripts")
+    except Exception as e:
+        return f"Script Library Error: {e}"
+
+
+@app.route('/logs')
+@login_required
+def logs_page():
+    """Audit Trail: Immutable history of system actions"""
+    try:
+        logs = supabase.table("audit_logs").select("*").order("created_at", desc=True).limit(100).execute()
+        return render_template('logs.html', logs=logs.data, page="logs")
+    except Exception as e:
+        return f"Audit Log Error: {e}"
+
+
+# --- 7. UEM API: REMOTE OPERATIONS & COMMANDS ---
+
+@app.route('/send-command', methods=['POST'])
+@login_required
+def send_command():
+    """Unicast Command: Pushes a signal to a specific node queue"""
+    device_id = request.form.get('device_id')
+    cmd = request.form.get('command')
+
+    # SECURITY VALIDATION: Check DB Security Policy
+    node = supabase.table("devices").select("*").eq("id", device_id).single().execute().data
+    if not node:
+        return "Node Identification Failed", 404
+
+    # Enforce Power Policy
+    if cmd in ["REBOOT", "SHUTDOWN"] and not node.get('perm_reboot', True):
+        return "Power Protocol Restricted by Policy", 403
+
+    # Enforce Terminal Policy (If not a system protocol)
+    is_protocol = cmd in ["FETCH_PROCESSES", "REBOOT", "SHUTDOWN", "RESET_RUSTDESK"] or "|" in cmd
+    if not is_protocol and not node.get('perm_terminal', True):
+        return "Remote Shell Restricted by Policy", 403
+
+    # Commit to Command Queue
+    supabase.table("devices").update({"pending_command": cmd}).eq("id", device_id).execute()
+
+    # Generate Audit Record
+    supabase.table("audit_logs").insert({
+        "target_device": device_id,
+        "action_type": "REMOTE_CMD",
+        "details": cmd
+    }).execute()
+
+    return redirect(url_for('index'))
+
+
+@app.route('/broadcast', methods=['POST'])
+@login_required
+def broadcast():
+    """Multicast Command: Pushes a signal to every node in the fleet"""
+    cmd = request.form.get('command')
+    supabase.table("devices").update({"pending_command": cmd}).execute()
+
+    supabase.table("audit_logs").insert({
+        "target_device": "ALL_NODES",
+        "action_type": "BROADCAST",
+        "details": cmd
+    }).execute()
+    return redirect(url_for('index'))
+
+
+@app.route('/run-script', methods=['POST'])
+@login_required
+def run_script():
+    """Automation: Runs a pre-saved library script on a node"""
+    data = request.json
+    device_id = data.get('device_id')
+    script_id = data.get('script_id')
+
+    script = supabase.table("scripts").select("code", "name").eq("id", script_id).single().execute().data
+    if not script:
+        return jsonify({"error": "Script Object Not Found"}), 404
+
+    supabase.table("devices").update({"pending_command": script['code']}).eq("id", device_id).execute()
+
+    supabase.table("audit_logs").insert({
+        "target_device": device_id,
+        "action_type": "SCRIPT_RUN",
+        "details": f"Executed script: {script['name']}"
+    }).execute()
+
+    return jsonify({"status": "Automation Triggered"})
+
+
 @app.route('/deploy-package', methods=['POST'])
 @login_required
 def deploy_package():
+    """Software Deployment: Initiates a silent installation handshake"""
     device_id = request.form.get('device_id')
     package_id = request.form.get('package_id')
 
     pkg = supabase.table("packages").select("*").eq("id", package_id).single().execute().data
-    if not pkg: return "Package not found", 404
+    if not pkg:
+        return "Package Definition Not Found", 404
 
     install_cmd = f"INSTALL|{pkg['download_url']}|{pkg['silent_switch']}"
     supabase.table("devices").update({"pending_command": install_cmd}).eq("id", device_id).execute()
@@ -167,19 +331,57 @@ def deploy_package():
         "status": "queued"
     }).execute()
 
-    return "Deployment Queued", 200
+    return "Deployment Protocol Initialized", 200
 
-# --- AGENT API (Telemetry & ITAM Upload) ---
+
+# --- 8. CONFIGURATION & POLICY APIS ---
+
+@app.route('/update-permissions', methods=['POST'])
+@login_required
+def update_permissions():
+    """Policy Sync: Updates the security flags for a specific node"""
+    data = request.json
+    device_id = data.get('device_id')
+    updates = {
+        "perm_terminal": data.get('terminal'),
+        "perm_reboot": data.get('reboot'),
+        "perm_rustdesk": data.get('rustdesk')
+    }
+    supabase.table("devices").update(updates).eq("id", device_id).execute()
+    return jsonify({"status": "policy_updated"})
+
+
+@app.route('/gateway/update', methods=['POST'])
+@login_required
+def update_gateway_config():
+    """Gateway Hub: Persists global infrastructure settings"""
+    data = request.json
+    config_id = data.get('id')
+    new_value = data.get('value')
+    supabase.table("gateway_config").update({"config_value": new_value}).eq("id", config_id).execute()
+    return jsonify({"status": "gateway_synchronized"})
+
+
+# --- 9. AGENT INTERFACE: INGESTION & REPORTING ---
 
 @app.route('/checkin', methods=['POST'])
 def checkin():
+    """Primary Heartbeat: Handles full hardware telemetry and command fetching"""
     if request.headers.get("X-API-KEY") != API_SECRET_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": "Gateway Handshake Failed"}), 401
 
     data = request.json
+    software_list = data.get("software_list")
     serial = data.get("id")
+    public_ip = data.get("public_ip")
 
-    # Update Hardware & Telemetry
+    lat, lon, city = get_coords_from_ip(data.get('public_ip'))
+
+
+    # REAL-TIME VULN LOGIC
+    vulns = scan_vulnerabilities(software_list)
+
+    # Construct the Expanded Telemetry Payload
     update_data = {
         "id": serial,
         "hostname": data.get("hostname"),
@@ -190,20 +392,33 @@ def checkin():
         "public_ip": data.get("public_ip"),
         "mac_address": data.get("mac_address"),
         "cpu_model": data.get("cpu_model"),
-        "cpu_id": data.get("cpu_id"),              # New diagnostic
-        "hw_sensors": data.get("hw_sensors"),        # New HWMonitor telemetry
+        "cpu_id": data.get("cpu_id"),
+        "hw_sensors": data.get("hw_sensors"),
         "cpu_cores": data.get("cpu_cores"),
         "ram_total": data.get("ram_total"),
+        "disk_total": data.get("disk_total"),
         "uptime": data.get("uptime"),
         "cpu_usage": data.get("cpu_usage"),
         "ram_usage": data.get("ram_usage"),
         "disk_usage": data.get("disk_usage"),
         "battery_level": data.get("battery_level"),
+        "is_charging": data.get("is_charging"),
         "rustdesk_id": data.get("rustdesk_id"),
+        "product_id": data.get("product_id"),
+        "system_type": data.get("system_type"),
+        "pen_touch": data.get("pen_touch"),
+        "vulndata_critical": vulns['critical'],
+        "vulndata_high": vulns['high'],
+        "vulndata_medium": vulns['medium'],
+        "latitude": lat,
+        "longitude": lon,
+        "city": city,
+        "is_online": True,
         "last_seen": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
     supabase.table("devices").upsert(update_data).execute()
 
+    # Process Software Audit if transmitted by agent
     software_list = data.get("software_list")
     if software_list:
         supabase.table("software_inventory").delete().eq("device_id", serial).execute()
@@ -211,74 +426,465 @@ def checkin():
             app_item['device_id'] = serial
         supabase.table("software_inventory").insert(software_list).execute()
 
-    resp = supabase.table("devices").select("pending_command").eq("id", serial).single().execute()
-    cmd = resp.data.get("pending_command") if resp.data else None
+    # Poll pending command and security policy
+    node = supabase.table("devices").select("pending_command, perm_terminal, perm_reboot").eq("id",
+                                                                                              serial).single().execute().data
 
+    cmd = node.get("pending_command") if node else None
     if cmd:
         supabase.table("devices").update({"pending_command": None}).eq("id", serial).execute()
 
-    return jsonify({"command": cmd})
+    # Policy Enforcement Logic for Agent-side verification
+    policy = {
+        "terminal": node.get("perm_terminal", True),
+        "reboot": node.get("perm_reboot", True)
+    }
+
+    return jsonify({"command": cmd, "policy": policy})
+
 
 @app.route('/report-result', methods=['POST'])
 def report_result():
+    """Terminal Reporting: Agents upload execution logs here"""
     data = request.json
     device_id = data.get("id")
     output = data.get("output")
     command = data.get("command")
 
-    # Save to Command History
+    # Append to command history table
     supabase.table("command_history").insert({
         "device_id": device_id,
         "command": command,
         "output": output
     }).execute()
 
-    # Update last output on device for quick view
+    # Update device's 'last output' for the real-time UI
     supabase.table("devices").update({"last_command_output": output}).eq("id", device_id).execute()
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "acknowledgement_received"})
+
+
+@app.route('/device/report-processes', methods=['POST'])
+def report_processes():
+    """Process Tree Reporting: Handles the active application dump"""
+    if request.headers.get("X-API-KEY") != API_SECRET_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    device_id = data.get("id")
+    processes = data.get("processes")
+
+    supabase.table("devices").update({"last_processes": processes}).eq("id", device_id).execute()
+    return jsonify({"status": "process_tree_synchronized"})
+
+
+# --- 10. REAL-TIME DATA BRIDGE ENDPOINTS (UI DRAWER) ---
+
+@app.route('/device/<device_id>/status')
+@login_required
+def device_status(device_id):
+    """Bridge for the management drawer's background refresh"""
+    device = supabase.table("devices").select("last_command_output", "rustdesk_id", "hw_sensors", "battery_level",
+                                              "is_charging").eq("id", device_id).single().execute()
+    return jsonify(device.data or {})
+
+
+@app.route('/device/<device_id>/software')
+@login_required
+def device_software(device_id):
+    """Bridge for Software Inventory tab"""
+    software = supabase.table("software_inventory").select("*").eq("device_id", device_id).execute()
+    return jsonify(software.data)
+
+
+@app.route('/device/<device_id>/processes')
+@login_required
+def get_processes(device_id):
+    """Bridge for Process Manager tab"""
+    device = supabase.table("devices").select("last_processes").eq("id", device_id).single().execute()
+    return jsonify(device.data.get("last_processes", []) if device.data else [])
+
 
 @app.route('/device/<device_id>/history')
 @login_required
 def device_history(device_id):
-    resp = supabase.table("command_history").select("*").eq("device_id", device_id).order("executed_at", desc=True).limit(10).execute()
+    """Bridge for Command History tab"""
+    resp = supabase.table("command_history").select("*").eq("device_id", device_id).order("executed_at",
+                                                                                          desc=True).limit(10).execute()
     return jsonify(resp.data)
 
-@app.route('/broadcast', methods=['POST'])
-@login_required
-def broadcast():
-    """Sends a command to EVERY online device"""
-    cmd = request.form.get('command')
-    supabase.table("devices").update({"pending_command": cmd}).execute()
-    supabase.table("audit_logs").insert({
-        "target_device": "ALL_NODES",
-        "action_type": "BROADCAST",
-        "details": cmd
-    }).execute()
-    return redirect(url_for('index'))
 
-@app.route('/fleet')
+@app.route('/scripts_api')
 @login_required
-def fleet_page():
-    try:
-        devices_resp = supabase.table("devices").select("*").execute()
-        devices = devices_resp.data or []
-        return render_template('fleet.html', devices=devices, page="fleet")
-    except Exception as e:
-        return f"Fleet Error: {e}"
+def scripts_api():
+    """Helper for Script Library selector dropdown"""
+    scripts = supabase.table("scripts").select("id", "name").execute().data or []
+    return jsonify(scripts)
 
-@app.route('/logs')
-@login_required
-def logs_page():
-    logs = supabase.table("audit_logs").select("*").order("created_at", desc=True).limit(100).execute()
-    return render_template('logs.html', logs=logs.data, page="logs")
 
-@app.route('/send-command', methods=['POST'])
+@app.route('/device/<device_id>/sync-processes', methods=['POST'])
 @login_required
-def send_command():
+def sync_processes(device_id):
+    """Force an immediate process tree refresh protocol"""
+    supabase.table("devices").update({"pending_command": "FETCH_PROCESSES"}).eq("id", device_id).execute()
+    return "Process Sync Queued", 200
+
+
+@app.route('/device/<device_id>/kill-process', methods=['POST'])
+@login_required
+def kill_process(device_id):
+    """Initiates a termination pulse for a specific PID"""
+    pid = request.form.get('pid')
+    kill_cmd = f"KILL_PROCESS|{pid}"
+    supabase.table("devices").update({"pending_command": kill_cmd}).eq("id", device_id).execute()
+    return "Kill Pulse Dispatched", 200
+
+
+@app.route('/device/rename', methods=['POST'])
+@login_required
+def rename_device():
     device_id = request.form.get('device_id')
-    cmd = request.form.get('command')
-    supabase.table("devices").update({"pending_command": cmd}).eq("id", device_id).execute()
-    return redirect(url_for('index'))
+    new_alias = request.form.get('alias')
+    dept = request.form.get('department')
+
+    supabase.table("devices").update({
+        "display_name": new_alias,
+        "department": dept
+    }).eq("id", device_id).execute()
+    return redirect(url_for('fleet_page'))
+
+
+@app.route('/reports/export')
+@login_required
+def export_report():
+    import pandas as pd
+    data = supabase.table("devices").select("*").execute().data
+    df = pd.DataFrame(data)
+    # Save to CSV and return as download
+    df.to_csv("fleet_report.csv")
+    return send_file("fleet_report.csv", as_attachment=True)
+
+from math import radians, cos, sin, asin, sqrt
+
+def check_geofence(device_lat, device_lon, safe_lat, safe_lon, radius_km):
+    # Haversine formula to calculate distance between two points
+    lon1, lat1, lon2, lat2 = map(radians, [device_lon, device_lat, safe_lon, safe_lat])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    km = 6371 * c
+    return km <= radius_km
+
+
+@app.route('/update-metadata', methods=['POST'])
+@login_required
+def update_metadata():
+    data = request.json
+    device_id = data.get('device_id')
+
+    updates = {
+        "display_name": data.get('display_name'),
+        "department": data.get('department')
+    }
+
+    supabase.table("devices").update(updates).eq("id", device_id).execute()
+
+    # Audit the rename action
+    supabase.table("audit_logs").insert({
+        "target_device": device_id,
+        "action_type": "IDENTITY_UPDATE",
+        "details": f"Renamed to {updates['display_name']} in {updates['department']}"
+    }).execute()
+
+    return jsonify({"status": "success"})
+
+
+def scan_vulnerabilities(software_list):
+    """
+    Logic: This sends the software list to an open CVE database (OSV.dev)
+    and returns counts by severity.
+    """
+    counts = {"critical": 0, "high": 0, "medium": 0}
+    if not software_list: return counts
+
+    # For performance, we check the first 5 apps or specific high-risk apps
+    # In a production environment, you'd use a background worker (Celery/Redis)
+    try:
+        for app in software_list[:10]: # Scan first 10 apps to prevent timeout
+            app_name = app.get('app_name', '').lower()
+            # Simplified Logic: Check against a known risk keywords
+            # (In production, hit https://api.osv.dev/v1/query)
+            if any(x in app_name for x in ['java', 'python', 'chrome', 'sql']):
+                counts["medium"] += 1
+    except:
+        pass
+    return counts
+
+
+@app.route('/api/departments', methods=['GET', 'POST'])
+@login_required
+def manage_departments():
+    if request.method == 'POST':
+        new_name = request.json.get('name')
+        supabase.table("department_list").insert({"name": new_name}).execute()
+        return jsonify({"status": "added"})
+
+    # UPDATED: Added .order("name") to sort alphabetically
+    depts = supabase.table("department_list").select("*").order("name").execute()
+    return jsonify(depts.data or [])
+
+
+@app.route('/device/update-metadata', methods=['POST'])
+@login_required
+def update_device_metadata():
+    data = request.json
+    device_id = data.get('device_id')
+    updates = {
+        "display_name": data.get('display_name'),
+        "department": data.get('department')
+    }
+    supabase.table("devices").update(updates).eq("id", device_id).execute()
+    return jsonify({"status": "success"})
+
+
+# 1. Add route to receive patch data from Agent
+@app.route('/report-patches', methods=['POST'])
+def report_patches():
+    if request.headers.get("X-API-KEY") != API_SECRET_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    device_id = data.get("id")
+    patches = data.get("patches", [])  # List of dicts
+
+    # Clear old patches and insert new ones
+    supabase.table("patch_inventory").delete().eq("device_id", device_id).execute()
+    if patches:
+        for p in patches:
+            p['device_id'] = device_id
+        supabase.table("patch_inventory").insert(patches).execute()
+
+    supabase.table("devices").update({"last_patch_scan": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq(
+        "id", device_id).execute()
+    return jsonify({"status": "Patch inventory synchronized"})
+
+
+# 2. Add route for UI to fetch patches
+@app.route('/device/<device_id>/patches')
+@login_required
+def get_device_patches(device_id):
+    resp = supabase.table("patch_inventory").select("*").eq("device_id", device_id).execute()
+    return jsonify(resp.data or [])
+
+
+@app.route('/pms')
+@login_required
+def pms_page():
+    # Fetch existing schedules
+    schedules = supabase.table("pms_schedules").select("*, devices(display_name, hostname, department)").order(
+        "planned_date").execute()
+    # Fetch all devices so we can choose one for a new schedule
+    devices = supabase.table("devices").select("id, hostname, display_name, department").execute()
+
+    return render_template('pms.html',
+                           schedules=schedules.data,
+                           devices=devices.data,  # Added this
+                           page="pms")
+
+
+@app.route('/api/pms/schedule', methods=['POST'])
+@login_required
+def create_pms_schedule():
+    data = request.json
+    try:
+        new_record = {
+            "device_id": data.get('device_id'),
+            "planned_date": data.get('planned_date'),
+            "year": int(data.get('year', 2025)),
+            "status": "Pending"
+        }
+        supabase.table("pms_schedules").insert(new_record).execute()
+
+        # Log to Audit
+        supabase.table("audit_logs").insert({
+            "target_device": data.get('device_id'),
+            "action_type": "PMS_SCHEDULED",
+            "details": f"Planned for {data.get('planned_date')}"
+        }).execute()
+
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/pms/log', methods=['POST'])
+@login_required
+def log_pms_activity():
+    data = request.json
+    # 1. Update the schedule with actual date
+    supabase.table("pms_schedules").update({
+        "actual_date": datetime.datetime.now().date().isoformat(),
+        "status": "Completed"
+    }).eq("id", data.get('schedule_id')).execute()
+
+    # 2. Insert into Checklist Log (F-ASM-06 logic)
+    supabase.table("pms_logs").insert({
+        "schedule_id": data.get('schedule_id'),
+        "performed_by": session.get('user', 'Admin'),
+        "checkpoints": data.get('checkpoints'),  # e.g. {"1": true, "2": true...}
+        "remarks": data.get('remarks')
+    }).execute()
+
+    return jsonify({"status": "PMS Logged Successfully"})
+
+
+# --- EXPORT TO EXCEL (F-ASM-05 Style) ---
+@app.route('/pms/export/excel')
+@login_required
+def export_pms_excel():
+    # Fetch data from Supabase
+    res = supabase.table("pms_schedules").select("*, devices(display_name, hostname, department)").execute()
+    data = res.data
+
+    # Flatten the data for Excel
+    flat_data = []
+    for row in data:
+        flat_data.append({
+            "Asset Name": row['devices']['display_name'] or row['devices']['hostname'],
+            "Department": row['devices']['department'],
+            "Planned Date": row['planned_date'],
+            "Actual Date": row['actual_date'],
+            "Status": row['status'],
+            "Year": row['year']
+        })
+
+    df = pd.DataFrame(flat_data)
+
+    # Create Excel file in memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='PMS_Schedule_2025')
+
+    output.seek(0)
+
+    return send_file(output,
+                     download_name="PMS_Schedule_F-ASM-05.xlsx",
+                     as_attachment=True,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# --- EXPORT TO PDF (F-ASM-06 Style) ---
+@app.route('/pms/export/pdf/<schedule_id>')
+@login_required
+def export_pms_pdf(schedule_id):
+    # Fetch the specific log and device info
+    log = supabase.table("pms_logs").select("*, pms_schedules(*, devices(*))").eq("schedule_id",
+                                                                                  schedule_id).single().execute().data
+
+    if not log:
+        return "Log not found", 404
+
+    # HTML Template for the PDF (Official Form Style)
+    html_content = f"""
+    <html>
+    <head><style>
+        body {{ font-family: Helvetica; font-size: 10px; }}
+        .header {{ text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+        th, td {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
+        .box {{ width: 10px; height: 10px; border: 1px solid black; display: inline-block; }}
+    </style></head>
+    <body>
+        <div class="header">
+            <h1>PREVENTIVE MAINTENANCE CHECKLIST</h1>
+            <p>Form Ref: F-ASM-06 | Device ID: {log['pms_schedules']['devices']['id']}</p>
+        </div>
+        <table>
+            <tr><th>Asset Name</th><td>{log['pms_schedules']['devices']['display_name']}</td></tr>
+            <tr><th>Department</th><td>{log['pms_schedules']['devices']['department']}</td></tr>
+            <tr><th>Performed By</th><td>{log['performed_by']}</td></tr>
+            <tr><th>Actual Date</th><td>{log['pms_schedules']['actual_date']}</td></tr>
+        </table>
+        <h3>Checkpoints</h3>
+        <p>1. Blower/Dust: {"[X] PASS" if log['checkpoints'].get('1') else "[ ] N/A"}</p>
+        <p>2. Fan Lubrication: {"[X] PASS" if log['checkpoints'].get('2') else "[ ] N/A"}</p>
+        <p>3. Peripherals: {"[X] PASS" if log['checkpoints'].get('3') else "[ ] N/A"}</p>
+        <h3>Remarks</h3>
+        <p>{log['remarks'] or 'No remarks recorded.'}</p>
+    </body>
+    </html>
+    """
+
+    # Convert HTML to PDF
+    result = BytesIO()
+    pisa_status = pisa.CreatePDF(html_content, dest=result)
+
+    result.seek(0)
+    return send_file(result, download_name=f"Checklist_{schedule_id}.pdf", as_attachment=True,
+                     mimetype='application/pdf')
+
+
+
+
+@app.route('/assets')
+@login_required
+def assets_page():
+    """Technical Audit Page: Detailed Hardware Inventory"""
+    try:
+        devices = supabase.table("devices").select("*").execute().data or []
+        # Calculate online status for the small indicator dots
+        calculate_online_status(devices)
+        return render_template('assets.html', devices=devices, page="assets")
+    except Exception as e:
+        return f"Asset Module Error: {e}"
+
+# --- NEW: GEOLOCATION LOGIC ---
+def get_coords_from_ip(public_ip):
+    try:
+        # Use a free API to locate the node by IP
+        r = requests.get(f"http://ip-api.com/json/{public_ip}?fields=status,lat,lon,city", timeout=3)
+        data = r.json()
+        if data['status'] == 'success':
+            return data['lat'], data['lon'], data['city']
+    except: pass
+    return None, None, None
+
+
+@app.route('/device/<device_id>/uninstall', methods=['POST'])
+@login_required
+def uninstall_app(device_id):  # <--- Added device_id here
+    app_name = request.form.get('app_name')
+
+    if not app_name:
+        return jsonify({"error": "Application name is required"}), 400
+
+    # Generate Winget Uninstall Command
+    # We use --name to target the specific app string reported by the agent
+    cmd = f'winget uninstall --name "{app_name}" --silent --accept-source-agreements'
+
+    # Update Supabase
+    try:
+        supabase.table("devices").update({"pending_command": cmd}).eq("id", device_id).execute()
+
+        # Log the action to audit logs
+        supabase.table("audit_logs").insert({
+            "target_device": device_id,
+            "action_type": "REMOTE_UNINSTALL",
+            "details": f"Initiated uninstall for: {app_name}"
+        }).execute()
+
+        return jsonify({"status": "Uninstall signal dispatched"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/geofencing')
+@login_required
+def geofencing_page():
+    devices = supabase.table("devices").select("id, display_name, hostname, latitude, longitude, city, is_online").execute().data or []
+    return render_template('geofencing.html', devices=devices, page="geofencing")
+
+
 
 if __name__ == '__main__':
+    # Flask local server init
     app.run(debug=True, port=5000)

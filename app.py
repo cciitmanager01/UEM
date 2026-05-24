@@ -1,23 +1,18 @@
-import requests # Add this at the top
-from openpyxl import Workbook
-from fpdf import FPDF # Add this to your imports
-
-
 import datetime
 import os
 import jwt
 import traceback
+import requests
 import socket
 import threading
 import time
-
+import re
 from io import BytesIO
-from flask import make_response
-
-import serial
 from flask import Flask, render_template, request, jsonify, redirect, session, url_for, send_file
 from supabase import create_client
 from functools import wraps
+from fpdf import FPDF
+from openpyxl import Workbook
 
 app = Flask(__name__)
 

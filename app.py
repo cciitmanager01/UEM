@@ -371,7 +371,14 @@ def checkin():
     serial = data.get("id")
     public_ip = data.get("public_ip")
 
-    lat, lon, city = get_coords_from_ip(data.get('public_ip'))
+
+    lat = data.get("latitude")
+    lon = data.get("longitude")
+    city = data.get("city")
+
+    # If the agent returned empty coordinates, fall back to IP-based estimation
+    if not lat or not lon:
+        lat, lon, city = get_coords_from_ip(data.get('public_ip'))
 
 
     # REAL-TIME VULN LOGIC
